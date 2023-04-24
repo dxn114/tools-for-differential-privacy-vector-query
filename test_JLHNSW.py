@@ -63,6 +63,8 @@ def test_randvec(exp)->None:
         avgs = dict(sorted(avgs.items()))
         avgs_h = dict(sorted(avgs_h.items()))
 
+        plt.ylabel("Accuracy/%")
+        plt.xlabel(test_set)
         plt.plot(avgs.keys(),avgs.values(),label = "hnsw")
         plt.plot(avgs_h.keys(),avgs_h.values(), label = "hnswh")
         plt.legend()
@@ -185,7 +187,7 @@ def clean():
 
 if __name__ == "__main__":
     exp = 3
-    build_from_file(os.path.join("randvec",f"10^{exp}",f"randvec128_10^{exp}.csv"))
+    #build_from_file(os.path.join("randvec",f"10^{exp}",f"randvec128_10^{exp}.csv"))
     test_randvec(exp)
     #clean()
     pass

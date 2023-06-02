@@ -1,10 +1,11 @@
+import sys,os,multiprocessing as mp,matplotlib.pyplot as plt
+sys.path.append(os.path.abspath("."))
 from randvec import gen_randvec
 from JLHNSW import JLHNSW
-import os,multiprocessing as mp,matplotlib.pyplot as plt
     
 def test_randvec(exp)->None:
     out = open("out(JL).csv", "w")
-    dataset=os.path.join("randvec",f"10^{exp}")   
+    dataset=os.path.join("randvec_JLHNSW",f"10^{exp}")   
     K = 100
     ef= 200
     test_sets = ["epsilon","delta","k_OPT"]
@@ -88,11 +89,11 @@ def build_from_file(path:str):
     M = 0
     efConstr = 100
     if scale ==3:
-        M = 10
+        M = 8
     elif scale ==4:
-        M = 20
+        M = 16
     elif scale ==5:
-        M = 40
+        M = 32
     elif scale ==6:
         M = 48
 
@@ -170,15 +171,14 @@ def build_from_file(path:str):
     for p in procs:
         p.join()
 
-    for p in procs_h:
-        p.start()
-    for p in procs_h:
-        p.join()
-
-def clean():
-    dataset="randvec"   
-    for dir_path in os.listdir(dataset):
-        dir_path = os.path.join(dataset,dir_path)
+    #for p in procs_h:
+    #    p.start()
+    #for p in procs_h:
+    #    p.join()
+datasets_dir="randvec_JLHNSW"  
+def clean():    
+    for dir_path in os.listdir(datasets_dir):
+        dir_path = os.path.join(datasets_dir,dir_path)
         
         for f in os.listdir(dir_path):
             if(f.endswith(".hnsw") or f.endswith(".hnswh")):
@@ -186,8 +186,9 @@ def clean():
                 os.remove(file_path)
 
 if __name__ == "__main__":
-    exp = 3
-    #build_from_file(os.path.join("randvec",f"10^{exp}",f"randvec128_10^{exp}.csv"))
-    test_randvec(exp)
+    exps = [4,5]
+    for exp in exps:
+        build_from_file(os.path.join(datasets_dir,f"10^{exp}",f"randvec128_10^{exp}.csv"))
+        test_randvec(exp)
     #clean()
     pass

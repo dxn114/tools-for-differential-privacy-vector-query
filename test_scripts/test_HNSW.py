@@ -1,11 +1,13 @@
+import os,multiprocessing as mp,sys
+sys.path.append(os.path.abspath("."))
 from randvec import gen_randvec
 from HNSW import HNSW
-import os,multiprocessing as mp
+
     
 def test_randvec()->None:
     out = open("out.csv", "w")
-    dataset="randvec"   
-    K = 50
+    dataset="randvec_HNSW"   
+    K = 100
     ef= 200
     for i in range(10):
         line = f"Acc{i}/%,"
@@ -62,7 +64,7 @@ def build_from_file(path:str):
         hnsw2.save(hnswh_path)
 
 def build_for_all():
-    dataset="randvec"   
+    dataset="randvec_HNSW"   
     processes : list[mp.Process] = []
     for dir_name in os.listdir(dataset):
         dir_path = os.path.join(dataset,dir_name)
@@ -76,11 +78,12 @@ def build_for_all():
 
     for p in processes:
         p.join()
-
+        
+dataset_dir="randvec_HNSW" 
 def clean():
-    dataset="randvec"   
-    for dir_name in os.listdir(dataset):
-        dir_path = os.path.join(dataset,dir_name)
+      
+    for dir_name in os.listdir(dataset_dir):
+        dir_path = os.path.join(dataset_dir,dir_name)
         
         for f in os.listdir(dir_path):
             if(f.endswith(".hnsw") or f.endswith(".hnswh")):
@@ -90,6 +93,6 @@ def clean():
 
 if __name__ == "__main__":
     build_for_all()
-    #test_randvec()
+    test_randvec()
     #clean()
     pass

@@ -13,7 +13,7 @@ class HGraph:
     num_of_vectors : int = 0
     ep : int = 0
     M_max : int = 0
-    def search_layer(self,q:np.array,ep:int,ef:int,lc:int)->PriorityQueue:
+    def search_layer(self,q:np.ndarray,ep:int,ef:int,lc:int)->PriorityQueue:
         v = {ep}
         C = PriorityQueue()
         dqep = dist(q,self.data[ep])
@@ -44,7 +44,7 @@ class HGraph:
             _W.put((-w[0],w[1]))
         return _W
     
-    def kNN_search(self,q:np.array,K:int,ef:int)->list[int]:
+    def kNN_search(self,q:np.ndarray,K:int,ef:int)->list[int]:
         print(f"Querying top-{K} for vector data {q} ...")
         t = time.time()
         W = PriorityQueue()
@@ -60,7 +60,7 @@ class HGraph:
         print(f"Search result retrieved in {t:.3f} seconds.\nCalculating accuracy ...")
         return W_
     
-    def real_kNN(self,q:np.array,K:int)->list:
+    def real_kNN(self,q:np.ndarray,K:int)->list:
         t = time.time()
         Q = PriorityQueue()
         i=0

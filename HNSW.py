@@ -51,8 +51,7 @@ class HNSW:
                             W_size -=1
         #invert the order of W: make it increasing
         _W = PriorityQueue()
-        while not W.empty():
-            w = W.get()
+        for w in W.queue:
             _W.put((-w[0],w[1]))
         return _W
     def select_neighbors_simple(self,q:np.array,C:PriorityQueue,M:int)->PriorityQueue:
@@ -186,6 +185,7 @@ class HNSW:
         t = time.time()-t
         print(f"Real result retrieved in {t:.3f} seconds.")
         return res
+
     def __init__(self) -> None:
         self.data={}
         self.layers=[]

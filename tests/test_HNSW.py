@@ -36,16 +36,16 @@ def test_randvec()->None:
         
 
 def build_from_file(path:str):
-    scale = int(path[-5])
+    exp = int(path[-5])
     M = 0
     efConstr = 100
-    if scale ==3:
+    if exp ==3:
         M = 8
-    elif scale ==4:
+    elif exp ==4:
         M = 16
-    elif scale ==5:
+    elif exp ==5:
         M = 32
-    elif scale ==6:
+    elif exp ==6:
         M = 48
 
     dir_name = os.path.dirname(path)

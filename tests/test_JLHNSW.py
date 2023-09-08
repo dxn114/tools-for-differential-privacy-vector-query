@@ -11,8 +11,8 @@ def test_randvec(exp)->None:
     test_sets = ["epsilon","delta","k_OPT"]
     line = "file_name,"
     for i in range(10):
-        line += f"Acc{i}/%,"
-    line +="Avg/%\n"
+        line += f"Recall{i},"
+    line +="Avg\n"
     out.write(line)
     for test_set in test_sets:
         dir_path = os.path.join(dataset,test_set)
@@ -38,11 +38,12 @@ def test_randvec(exp)->None:
                         if res[i] in real:
                             score +=1
                     
-                    sum +=score
-                    print(f"Accuracy: {score*100//K}%")
-                    line += f"{score*100//K},"
+                    rec = score/float(K)
+                    sum += rec
+                    print(f"Recall: {rec}")
+                    line += f"{rec},"
 
-                avg = sum//10
+                avg = sum/10.0
                 if test_set=="epsilon":
                     if hnsw.algchoose==3:
                         avgs[hnsw.epsilon] = avg
@@ -64,11 +65,12 @@ def test_randvec(exp)->None:
         avgs = dict(sorted(avgs.items()))
         avgs_h = dict(sorted(avgs_h.items()))
 
-        plt.ylabel("Accuracy/%")
+        plt.ylabel("Recall")
         plt.xlabel(test_set)
-        plt.plot(avgs.keys(),avgs.values(),label = "hnsw")
-        plt.plot(avgs_h.keys(),avgs_h.values(), label = "hnswh")
-        plt.legend()
+        plt.ylim(0,1)
+        plt.plot(avgs.keys(),avgs.values())#,label = "hnsw"
+        #plt.plot(avgs_h.keys(),avgs_h.values(),label = "hnswh")
+        #plt.legend()
         plt.savefig(os.path.join(dataset,f"{test_set}.png"))
         plt.close()
 
@@ -188,7 +190,7 @@ def clean():
 if __name__ == "__main__":
     exps = [4,5]
     for exp in exps:
-        build_from_file(os.path.join(datasets_dir,f"10^{exp}",f"randvec128_10^{exp}.csv"))
+        #build_from_file(os.path.join(datasets_dir,f"10^{exp}",f"randvec128_10^{exp}.csv"))
         test_randvec(exp)
     #clean()
     pass

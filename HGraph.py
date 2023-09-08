@@ -1,11 +1,6 @@
-import numpy as np,time,os,dill,multiprocessing as mp,networkx as nx,matplotlib.pyplot as plt
+import numpy as np,time,os,dill,networkx as nx,matplotlib.pyplot as plt
 from queue import PriorityQueue
-
-def dist(q1,q2):
-    d = q1-q2
-    return np.inner(d,d)
-    
-         
+ 
 class HGraph:
     data : np.ndarray = np.zeros(0)
     layers : list[nx.Graph] = []
@@ -13,10 +8,14 @@ class HGraph:
     num_of_vectors : int = 0
     ep : int = 0
     M_max : int = 0
+
+    def dist(q1,q2):
+        d = q1-q2
+        return np.inner(d,d)
     def search_layer(self,q:np.ndarray,ep:int,ef:int,lc:int)->PriorityQueue:
         v = {ep}
         C = PriorityQueue()
-        dqep = dist(q,self.data[ep])
+        dqep = self.dist(q,self.data[ep])
         C.put((dqep,ep))#increasing order
         W = PriorityQueue()
         W.put((-dqep,ep))#decreasing order
@@ -30,7 +29,7 @@ class HGraph:
                 if e not in v:
                     v.add(e)
                     f = W.queue[0]
-                    deq = dist(self.data[e],q)
+                    deq = self.dist(self.data[e],q)
                     if deq < -f[0] or W_size<ef:
                         C.put((deq,e))
                         W.put((-deq,e))
@@ -65,7 +64,7 @@ class HGraph:
         Q = PriorityQueue()
         i=0
         for vector_id in range(self.data.shape[0]):
-            d = dist(q,self.data[vector_id])
+            d = self.dist(q,self.data[vector_id])
             if(i<K):
                 Q.put((-d,vector_id))
                 i+=1
@@ -85,7 +84,8 @@ class HGraph:
 
     def build(self,path:str,M:int):
         file_name = os.path.basename(path)
-        print(f"Building {self.__class__.__name__} from datafile {file_name} ...")
+        class_name = self.__class__.__name__
+        print(f"Building {class_name} from datafile {file_name} ...")
         if(path.endswith(".csv")):
             t = time.time()
             self.M_max = 2*M
@@ -96,11 +96,12 @@ class HGraph:
             self.num_of_vectors = self.data.shape[0]
 
             for i in range(self.num_of_vectors):
+                L = len(self.layers)-1
                 l : int= int(-np.log(np.random.rand(1)[0])*mL)#new element’s level
-                if len(self.layers)<l+1:
+                if L<l:
                     self.ep = i
 
-                while len(self.layers)<l+1:
+                while L<l:
                     self.layers.append(nx.Graph())
 
                 for j in range(l+1):
@@ -118,9 +119,9 @@ class HGraph:
             #    proc.join()
             
             dim = self.data.shape[1]
-            print(f"{self.__class__.__name__} for {self.num_of_vectors} {dim}D vectors built in {t:.3f} seconds.")
+            print(f"{class_name} for {self.num_of_vectors} {dim}D vectors built in {t:.3f} seconds.")
         else: 
-            print(f"ERROR! Cannot build from file{file_name}")    
+            print(f"ERROR! Cannot build from file{file_name}")
 
     def load(self,path:str):
         class_name = self.__class__.__name__

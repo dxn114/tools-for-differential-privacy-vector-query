@@ -1,5 +1,5 @@
-import scipy as sp,numpy as np,time,os,dill,multiprocessing as mp,networkx as nx
-from HGraph import HGraph,dist
+import scipy as sp,numpy as np,os,multiprocessing as mp,networkx as nx
+from HGraph import HGraph
 
 #reorder M according to x
 def reorder(x : np.ndarray,M:np.ndarray)->np.ndarray:
@@ -24,7 +24,7 @@ def x_constraint(x:np.ndarray)->int:
 
 #sum of squared pairwise distances
 def dist_square_sum(x : np.ndarray,*args)->float:
-    data = args[0]
+    data : np.ndarray = args[0]
     A : nx.Graph = args[1]
     size = data.shape[0]
     pem = reorder(x,data)

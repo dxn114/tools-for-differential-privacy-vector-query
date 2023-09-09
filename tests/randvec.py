@@ -1,11 +1,13 @@
 import numpy as np
-import os,time
+import os,time,shutil
 def gen_randvec(dim:int)->np.array:
     return np.random.randint(-2048,2048,size=dim)
 
+test_classes = ["HGraph","HNSW","HNSWH","JLHNSW","HREG","HMST"]
+
 def gen_randvec_file(*exp):
-    if not os.path.exists("randvec"):
-        os.makedirs("randvec")
+    if not os.path.exists(f"randvec"):
+        os.makedirs(f"randvec")
     dims = [128]
     for dim in dims:
         for i in exp:
@@ -27,5 +29,6 @@ def gen_randvec_file(*exp):
             t = time.time() - t
             print(f"File {filename} generated in {t} seconds.")
             f.close()
+    
 if __name__ == "__main__":
     gen_randvec_file(3,4,5)

@@ -2,9 +2,12 @@ import os,multiprocessing as mp,sys
 sys.path.append(os.path.abspath("."))
 from randvec import gen_randvec
 from HREG import HREG
+
+class_name = "HREG"
+ext = f".{class_name.lower()}"
 def test_randvec()->None:
-    out = open("out(HREG).csv", "w")
-    dataset="randvec_HREG"   
+    out = open(f"out({class_name}).csv", "w")
+    dataset=f"randvec_{class_name}"   
     K = 100
     ef= 200
     for i in range(10):
@@ -14,7 +17,7 @@ def test_randvec()->None:
             dir_path = os.path.join(dataset,f"10^{exp}")
             for f in os.listdir(dir_path):
                 hreg : HREG = HREG()
-                if(f.endswith(".hreg")):
+                if(f.endswith(ext)):
                     q = gen_randvec(128)
                     print("======================================")
                     model_path = os.path.join(dir_path,f)
@@ -45,7 +48,7 @@ def build_from_file(path:str):
         M = 48
 
     dir_name = os.path.dirname(path)
-    hnsw_path = path.replace(".csv",".hreg")
+    hnsw_path = path.replace(".csv",ext)
     
     if(os.path.basename(hnsw_path) not in os.listdir(dir_name)):
         hreg = HREG()
@@ -53,14 +56,14 @@ def build_from_file(path:str):
         hreg.save(hnsw_path)
 
 def build_for_all():
-    dataset="randvec_HREG"   
+    dataset=f"randvec_{class_name}"   
     processes : list[mp.Process] = []
     for dir_name in os.listdir(dataset):
         dir_path = os.path.join(dataset,dir_name)
         for f in os.listdir(dir_path):
             if(f.endswith(".csv")):
                 file_path = os.path.join(dir_path,f)
-                if (f.replace(".csv",".hreg") not in os.listdir(dir_path)):
+                if (f.replace(".csv",ext) not in os.listdir(dir_path)):
                     p = mp.Process(target=build_from_file,args=(file_path,))
                     p.start()
                     processes.append(p)
@@ -68,14 +71,14 @@ def build_for_all():
     for p in processes:
         p.join()
         
-dataset_dir="randvec_HREG" 
+dataset_dir=f"randvec_{class_name}" 
 def clean():
       
     for dir_name in os.listdir(dataset_dir):
         dir_path = os.path.join(dataset_dir,dir_name)
         
         for f in os.listdir(dir_path):
-            if(f.endswith(".hreg")):
+            if(f.endswith(ext)):
                 file_path = os.path.join(dir_path,f)
                 os.remove(file_path)
 

@@ -1,6 +1,7 @@
-import numpy as np,time,os,dill,networkx as nx,matplotlib.pyplot as plt
+import numpy as np,time,os,pickle,networkx as nx,matplotlib.pyplot as plt
 from queue import PriorityQueue
- 
+from copy import deepcopy
+
 class HGraph:
     data : np.ndarray = np.zeros(0)
     layers : list[nx.Graph] = []
@@ -8,14 +9,36 @@ class HGraph:
     num_of_vectors : int = 0
     ep : int = 0
     M_max : int = 0
+    Dist_Mat : np.ndarray = np.zeros(0)
 
-    def dist(q1,q2):
-        d = q1-q2
-        return np.inner(d,d)
-    def search_layer(self,q:np.ndarray,ep:int,ef:int,lc:int)->PriorityQueue:
+    def __init__(self) -> None:
+        self.layers = []
+    def dist_square_sum(self,x : np.ndarray, **kwargs) -> float:
+        lc : int = kwargs[0]
+        A : nx.Graph = kwargs[1]
+        vector_ids = np.array(self.layers[lc].nodes())[x]
+        H = 0
+        for e in A.edges:
+            H += self.Dist_Mat[vector_ids[e[0]],vector_ids[e[1]]]
+    def precal_dist(self)->None:
+        size = self.data.shape[0]
+        F = np.ones((size,size),dtype=int)
+        for i in range(size):
+            d2 = int(np.inner(self.data[i],self.data[i]))
+            F[i] *= d2
+        self.Dist_Mat = F + np.transpose(F) - 2*(self.data @ (np.transpose(self.data)))
+
+    def dist(self,q : np.ndarray,vid:int,qid:int=None):
+        if qid == None:
+            d = q-self.data[vid]
+            return np.inner(d,d)
+        else:
+            return self.Dist_Mat[vid,qid]
+
+    def search_layer(self,q:np.ndarray,ep:int,ef:int,lc:int,qid : int = None)->PriorityQueue:
         v = {ep}
         C = PriorityQueue()
-        dqep = self.dist(q,self.data[ep])
+        dqep = self.dist(q,ep,qid)
         C.put((dqep,ep))#increasing order
         W = PriorityQueue()
         W.put((-dqep,ep))#decreasing order
@@ -29,7 +52,7 @@ class HGraph:
                 if e not in v:
                     v.add(e)
                     f = W.queue[0]
-                    deq = self.dist(self.data[e],q)
+                    deq = self.dist(q,e,qid)
                     if deq < -f[0] or W_size<ef:
                         C.put((deq,e))
                         W.put((-deq,e))
@@ -59,18 +82,18 @@ class HGraph:
         print(f"Search result retrieved in {t:.3f} seconds.\nCalculating accuracy ...")
         return W_
     
-    def real_kNN(self,q:np.ndarray,K:int)->list:
+    def real_kNN(self,q:np.ndarray,K:int,qid:int=None)->list:
         t = time.time()
         Q = PriorityQueue()
         i=0
-        for vector_id in range(self.data.shape[0]):
-            d = self.dist(q,self.data[vector_id])
+        for vid in range(self.data.shape[0]):
+            d = self.dist(q,vid,qid)
             if(i<K):
-                Q.put((-d,vector_id))
+                Q.put((-d,id))
                 i+=1
             elif d<-Q.queue[0][0]:
                 Q.get()
-                Q.put((-d,vector_id))
+                Q.put((-d,vid))
         res = []
         for i in range(K):
             res.insert(0,Q.get()[1])
@@ -92,7 +115,8 @@ class HGraph:
             mL:float = 1/(np.log(M))
             self.data = np.loadtxt(path,delimiter=',',dtype=int)
             
-            t = time.time()-t
+            self.precal_dist()
+            
             self.num_of_vectors = self.data.shape[0]
 
             for i in range(self.num_of_vectors):
@@ -101,7 +125,7 @@ class HGraph:
                 if L<l:
                     self.ep = i
 
-                while L<l:
+                while len(self.layers)-1<l:
                     self.layers.append(nx.Graph())
 
                 for j in range(l+1):
@@ -119,6 +143,7 @@ class HGraph:
             #    proc.join()
             
             dim = self.data.shape[1]
+            t = time.time()-t
             print(f"{class_name} for {self.num_of_vectors} {dim}D vectors built in {t:.3f} seconds.")
         else: 
             print(f"ERROR! Cannot build from file{file_name}")
@@ -129,7 +154,7 @@ class HGraph:
         print(f"Loading {class_name} from {os.path.basename(path)} ...")
         if(path.endswith(ext)):
             with open (path,"rb") as f:
-                m : HGraph = dill.load(f)
+                m : HGraph = pickle.load(f)
                 self.__dict__.update(m.__dict__)
  
             print(f"File {os.path.basename(path)} loaded as {class_name}.")
@@ -138,22 +163,21 @@ class HGraph:
 
     def save(self,path) -> None:
         with open(path, "wb") as f:
-            dill.dump(self,f)
+            pickle.dump(self,f)
             print(f"{self.__class__.__name__} saved to {os.path.basename(path)}")
 
     def draw(self,path):
-        ext = ".jpg"
         if "layer_view" not in os.listdir(path):
             os.mkdir(os.path.join(path,"layer_view"))
         else:
-            for png in os.listdir(os.path.join(path,"layer_view")):
-                if  png.endswith(ext):
-                    os.remove(os.path.join(path,"layer_view",png))
+            for jpg in os.listdir(os.path.join(path,"layer_view")):
+                if  jpg.endswith(".jpg"):
+                    os.remove(os.path.join(path,"layer_view",jpg))
         from math import sqrt
         for i in range(self.num_of_layers):
             n = self.layers[i].number_of_nodes()
             l = int(sqrt(n))*10
             plt.figure(figsize=(l, l))
             nx.draw_networkx(self.layers[i],pos=nx.spring_layout(self.layers[i],k=n**2,scale=n**4))
-            plt.savefig(os.path.join(path,"layer_view",f"layer{i}{ext}"))
+            plt.savefig(os.path.join(path,"layer_view",f"layer{i}.jpg"))
             plt.clf()

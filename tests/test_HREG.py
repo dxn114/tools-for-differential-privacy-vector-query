@@ -57,19 +57,14 @@ def build_from_file(path:str):
 
 def build_for_all():
     dataset=f"randvec_{class_name}"   
-    processes : list[mp.Process] = []
     for dir_name in os.listdir(dataset):
         dir_path = os.path.join(dataset,dir_name)
         for f in os.listdir(dir_path):
             if(f.endswith(".csv")):
                 file_path = os.path.join(dir_path,f)
                 if (f.replace(".csv",ext) not in os.listdir(dir_path)):
-                    p = mp.Process(target=build_from_file,args=(file_path,))
-                    p.start()
-                    processes.append(p)
+                    build_from_file(file_path)
 
-    for p in processes:
-        p.join()
         
 dataset_dir=f"randvec_{class_name}" 
 def clean():

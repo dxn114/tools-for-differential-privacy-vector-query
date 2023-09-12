@@ -12,7 +12,7 @@ def test_randvec()->None:
     ef= 200
     for i in range(10):
         line = f"Acc{i}/%,"
-        exps = [3]
+        exps = [3,4,5]
         dim = 128
         for exp in exps:
             dir_path = os.path.join(dataset,f"10^{exp}")
@@ -87,7 +87,7 @@ def clean():
 
 
 if __name__ == "__main__":
-    build_for_all()
+    #build_for_all()
     test_randvec()
     #clean()
     pass

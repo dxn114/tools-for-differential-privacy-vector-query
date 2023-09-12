@@ -1,6 +1,6 @@
 import numpy as np,time,os,pickle,networkx as nx,matplotlib.pyplot as plt
 from queue import PriorityQueue
-from copy import deepcopy
+import psutil
 
 class HGraph:
     data : np.ndarray = np.zeros(0)
@@ -13,23 +13,26 @@ class HGraph:
 
     def __init__(self) -> None:
         self.layers = []
-    def dist_square_sum(self,x : np.ndarray, **kwargs) -> float:
-        lc : int = kwargs[0]
-        A : nx.Graph = kwargs[1]
-        vector_ids = np.array(self.layers[lc].nodes())[x]
-        H = 0
+    def dist_square_sum(self,x : np.ndarray, lc : int, A : nx.Graph) -> float:
+        vector_ids = [x[i] for i in self.layers[lc].nodes()]
+        H : float = 0
         for e in A.edges:
             H += self.Dist_Mat[vector_ids[e[0]],vector_ids[e[1]]]
+        return H
+    
     def precal_dist(self)->None:
         size = self.data.shape[0]
+        estimated_mem = (size**2)*4
+        if estimated_mem > psutil.virtual_memory().available:
+            return
         F = np.ones((size,size),dtype=int)
         for i in range(size):
             d2 = int(np.inner(self.data[i],self.data[i]))
             F[i] *= d2
-        self.Dist_Mat = F + np.transpose(F) - 2*(self.data @ (np.transpose(self.data)))
 
+        self.Dist_Mat = F + np.transpose(F) - 2*(self.data @ (np.transpose(self.data)))
     def dist(self,q : np.ndarray,vid:int,qid:int=None):
-        if qid == None:
+        if qid == None or self.Dist_Mat.size == 0:
             d = q-self.data[vid]
             return np.inner(d,d)
         else:
@@ -84,19 +87,19 @@ class HGraph:
     
     def real_kNN(self,q:np.ndarray,K:int,qid:int=None)->list:
         t = time.time()
-        Q = PriorityQueue()
+        Q = PriorityQueue() # max heap
         i=0
         for vid in range(self.data.shape[0]):
             d = self.dist(q,vid,qid)
             if(i<K):
-                Q.put((-d,id))
+                Q.put((-d,vid))
                 i+=1
             elif d<-Q.queue[0][0]:
                 Q.get()
                 Q.put((-d,vid))
-        res = []
-        for i in range(K):
-            res.insert(0,Q.get()[1])
+        res = [vid for _, vid in Q.queue]
+        # for i in range(K):
+        #     res.insert(0,Q.get()[1])
         t = time.time()-t
         print(f"Real result retrieved in {t:.3f} seconds.")
         return res
@@ -133,7 +136,7 @@ class HGraph:
 
             self.num_of_layers = len(self.layers)
             #Procs = []
-            for lc in range(self.num_of_layers):
+            for lc in range(self.num_of_layers-1,-1,-1):
                 #proc = mp.Process(target=self.build_layer,args=(lc,layer_vector_ids[lc]))
                 #Procs.append(proc)
                 #proc.start()

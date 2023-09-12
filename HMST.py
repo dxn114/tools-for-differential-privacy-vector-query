@@ -3,8 +3,8 @@ import networkx as nx,os
 class HMST(HGraph):
     def build_layer(self, lc:int):
         com_graph : nx.Graph = nx.complete_graph(self.layers[lc].nodes())
-        for e in com_graph.edges():
-            com_graph[e[0]][e[1]]["weight"] = self.Dist_Mat[e[0],e[1]]
+        for v0,v1 in com_graph.edges():
+            com_graph[v0][v1]["weight"] = self.dist(self.data[v0],v1,v0)
 
         self.layers[lc] = nx.minimum_spanning_tree(com_graph)
 

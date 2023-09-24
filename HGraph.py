@@ -1,6 +1,7 @@
 import numpy as np,time,os,pickle,networkx as nx,matplotlib.pyplot as plt
 from queue import PriorityQueue
 import psutil
+from sklearn.metrics import pairwise_distances
 
 class HGraph:
     data : np.ndarray = np.zeros(0)
@@ -14,10 +15,13 @@ class HGraph:
     def __init__(self) -> None:
         self.layers = []
     def dist_square_sum(self,x : np.ndarray, lc : int, A : nx.Graph) -> float:
-        vector_ids = [x[i] for i in self.layers[lc].nodes()]
+        # x gives the order of nodes
+        vector_ids = [self.layers[lc].nodes()[i] for i in x]
         H : float = 0
-        for e in A.edges:
-            H += self.Dist_Mat[vector_ids[e[0]],vector_ids[e[1]]]
+        for u,v in A.edges:
+            v1 = vector_ids[u]
+            v2 = vector_ids[v]
+            H += self.dist(self.data[v1],v2,v1)
         return H
     
     def precal_dist(self)->None:
@@ -25,16 +29,11 @@ class HGraph:
         estimated_mem = (size**2)*4
         if estimated_mem > psutil.virtual_memory().available:
             return
-        F = np.ones((size,size),dtype=int)
-        for i in range(size):
-            d2 = int(np.inner(self.data[i],self.data[i]))
-            F[i] *= d2
-
-        self.Dist_Mat = F + np.transpose(F) - 2*(self.data @ (np.transpose(self.data)))
+        self.Dist_Mat = pairwise_distances(self.data,metric='euclidean',n_jobs=-1)
     def dist(self,q : np.ndarray,vid:int,qid:int=None):
         if qid == None or self.Dist_Mat.size == 0:
             d = q-self.data[vid]
-            return np.inner(d,d)
+            return np.linalg.norm(d)
         else:
             return self.Dist_Mat[vid,qid]
 
@@ -70,7 +69,7 @@ class HGraph:
         return _W
     
     def kNN_search(self,q:np.ndarray,K:int,ef:int)->list[int]:
-        print(f"Querying top-{K} for vector data {q} ...")
+        print(f"Querying top-{K} ...")
         t = time.time()
         W = PriorityQueue()
         ep = self.ep
@@ -87,7 +86,7 @@ class HGraph:
     
     def real_kNN(self,q:np.ndarray,K:int,qid:int=None)->list:
         t = time.time()
-        Q = PriorityQueue() # max heap
+        Q = PriorityQueue() # decreasing order
         i=0
         for vid in range(self.data.shape[0]):
             d = self.dist(q,vid,qid)
@@ -98,6 +97,7 @@ class HGraph:
                 Q.get()
                 Q.put((-d,vid))
         res = [vid for _, vid in Q.queue]
+        # res = []
         # for i in range(K):
         #     res.insert(0,Q.get()[1])
         t = time.time()-t
@@ -144,7 +144,7 @@ class HGraph:
 
             #for proc in Procs:
             #    proc.join()
-            
+            self.Dist_Mat = np.zeros(0)
             dim = self.data.shape[1]
             t = time.time()-t
             print(f"{class_name} for {self.num_of_vectors} {dim}D vectors built in {t:.3f} seconds.")

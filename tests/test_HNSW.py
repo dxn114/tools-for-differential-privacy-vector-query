@@ -87,7 +87,7 @@ def clean():
 
 
 if __name__ == "__main__":
-    #build_for_all()
+    build_for_all()
     test_randvec()
     #clean()
     pass

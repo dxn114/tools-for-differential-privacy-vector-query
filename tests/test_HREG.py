@@ -12,7 +12,7 @@ def test_randvec()->None:
     ef= 200
     for i in range(10):
         line = f"Acc{i}/%,"
-        exps = [3,4,5]
+        exps = [3,4]
         for exp in exps:
             dir_path = os.path.join(dataset,f"10^{exp}")
             for f in os.listdir(dir_path):
@@ -29,7 +29,7 @@ def test_randvec()->None:
                     for i in range(K):
                         if res[i] in real:
                             score +=1
-                    print(f"Accuracy: {score*100//K}%")
+                    print(f"Recall: {score*100//K}%")
                     line += f"{score*100//K},"
 
         line = line.removesuffix(",") + '\n'
@@ -79,7 +79,7 @@ def clean():
 
 
 if __name__ == "__main__":
-    build_for_all()
+    # clean()
+    # build_for_all()
     test_randvec()
-    #clean()
     pass

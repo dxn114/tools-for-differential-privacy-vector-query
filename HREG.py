@@ -1,31 +1,26 @@
-import scipy as sp,numpy as np,os,multiprocessing as mp,networkx as nx
+import numpy as np,scipy as sp,os,multiprocessing as mp,networkx as nx
 from HGraph import HGraph
-
-def x_constraint(x:np.ndarray)->int:
-    if x.dtype != int:
-        return 0
-    n = x.shape[0]
-
-    if (np.sort(x) == np.arange(n,dtype=int)).all():
-        return 1
-    else:
-        return 0
+from sklearn.neighbors import kneighbors_graph
 
 class HREG(HGraph):
-    
     def build_layer(self, lc : int):
         layer_size = self.layers[lc].number_of_nodes()
+        if self.M_max >= layer_size-1:
+            self.layers[lc] = nx.complete_graph(self.layers[lc].nodes())
+            return
         d = min(layer_size-1, self.M_max)
-        reg_graph : nx.Graph = nx.random_regular_graph(d,layer_size)
-        x0 = np.arange(layer_size,dtype=int)
+        
+        layer_data = self.data[self.layers[lc].nodes()]
+        Adj_Mat = kneighbors_graph(layer_data,d,mode='distance',include_self=False)
+        nodelist = list(self.layers[lc].nodes())
+        for u in range(layer_size):
+            for v in range(u+1,layer_size):
+                if Adj_Mat[u,v] == 0:
+                    continue
+                v1 = nodelist[u]
+                v2 = nodelist[v]
+                self.layers[lc].add_edge(v1,v2,weight=Adj_Mat[u,v])
 
-        nlc = sp.optimize.NonlinearConstraint(x_constraint,1,1)
-        #res = sp.optimize.minimize(self.dist_square_sum,x0,args=(lc,reg_graph),constraints = nlc)
-        vector_ids = np.array(self.layers[lc].nodes())[x0]
-        for e in reg_graph.edges():
-            v1 = vector_ids[e[0]]
-            v2 = vector_ids[e[1]]
-            self.layers[lc].add_edge(v1,v2)
 
 if __name__ == '__main__':
     h = HREG()
@@ -36,5 +31,5 @@ if __name__ == '__main__':
     h.save(h_path)
     n = HREG()
     n.load(h_path)
-    n.draw(dir_path)
+    #n.draw(dir_path)
     pass

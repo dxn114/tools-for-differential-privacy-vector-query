@@ -25,16 +25,13 @@ class DPHREG(HGraph):
             if self.Dist_Mat.size != 0:
                 dist_vec = self.Dist_Mat[v][nodes]
             else:
-                #dist_vec = pairwise_distances(self.data[v].reshape(1,-1),self.data[nodes],metric='euclidean',n_jobs=-1).ravel()
                 v_tensor = torch.from_numpy(self.data[v].reshape(1,-1)).to(device)
                 nodes_tensor = torch.from_numpy(self.data[nodes]).to(device)
                 dist_vec = torch.pairwise_distance(v_tensor,nodes_tensor,p=2).ravel().to("cpu").numpy()
 
             sorted_dist_vec = np.sort(dist_vec)
 
-            s_f = 0
-            for i in range(0,m):
-                s_f = max(abs(sorted_dist_vec[i+1] - sorted_dist_vec[i]),s_f)
+            s_f = np.absolute(sorted_dist_vec[1:] - sorted_dist_vec[:-1]).max()
 
             lambda_os = 8*s_f*np.sqrt(k*np.log(m/self.delta))/self.epsilon
 

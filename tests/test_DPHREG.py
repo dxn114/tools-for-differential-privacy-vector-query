@@ -33,10 +33,7 @@ def test_randvec(exp)->None:
                     res = h.kNN_search(q,K,ef)
                     real = h.real_kNN(q,K)
                     
-                    score = 0
-                    for i in range(K):
-                        if res[i] in real:
-                            score +=1
+                    score = len(set(res)&set(real))
                     
                     rec = score/float(K)
                     sum += rec
@@ -69,11 +66,11 @@ def build_model(vecfile_path,model_path,epsilon=0.2,delta=0.05):
     if exp ==3:
         M = 8
     elif exp ==4:
-        M = 16
-    elif exp ==5:
         M = 32
+    elif exp ==5:
+        M = 64
     elif exp ==6:
-        M = 48
+        M = 128
     
     h = DPHREG(epsilon=epsilon,delta=delta)
     h.build(vecfile_path,M)
@@ -120,9 +117,9 @@ def build_from_file(vecfile_path:str):
 datasets_dir=f"randvec_{class_name}"  
 
 if __name__ == "__main__":
-    exps = [3,4]
+    exps = [3,4,5]
     for exp in exps:
-        # build_from_file(os.path.join(datasets_dir,f"10^{exp}",f"randvec128_10^{exp}.csv"))
+        build_from_file(os.path.join(datasets_dir,f"10^{exp}",f"randvec128_10^{exp}.csv"))
         test_randvec(exp)
     
     pass

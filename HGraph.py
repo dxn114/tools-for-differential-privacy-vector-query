@@ -84,22 +84,10 @@ class HGraph:
         print(f"Search result retrieved in {t:.3f} seconds.\nCalculating accuracy ...")
         return W_
     
-    def real_kNN(self,q:np.ndarray,K:int,qid:int=None)->list:
+    def real_kNN(self,q:np.ndarray,K:int)->list:
         t = time.time()
-        Q = PriorityQueue() # decreasing order
-        i=0
-        for vid in range(self.data.shape[0]):
-            d = self.dist(q,vid,qid)
-            if(i<K):
-                Q.put((-d,vid))
-                i+=1
-            elif d<-Q.queue[0][0]:
-                Q.get()
-                Q.put((-d,vid))
-        res = [vid for _, vid in Q.queue]
-        # res = []
-        # for i in range(K):
-        #     res.insert(0,Q.get()[1])
+        dist_vec = pairwise_distances(np.array([q]),self.data,metric='euclidean',n_jobs=-1).ravel()
+        res = np.argsort(dist_vec)[:K].tolist()
         t = time.time()-t
         print(f"Real result retrieved in {t:.3f} seconds.")
         return res
@@ -118,7 +106,7 @@ class HGraph:
             mL:float = 1/(np.log(M))
             self.data = np.loadtxt(path,delimiter=',',dtype=int)
             
-            self.precal_dist()
+            # self.precal_dist()
             
             self.num_of_vectors = self.data.shape[0]
 

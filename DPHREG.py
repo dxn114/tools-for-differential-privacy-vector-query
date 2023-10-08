@@ -1,7 +1,9 @@
 import numpy as np,os,networkx as nx
 from HGraph import HGraph
-from sklearn.metrics import pairwise_distances
-
+import torch
+device = "cpu"
+if torch.cuda.is_available():
+    device = "cuda"
 class DPHREG(HGraph):
     epsilon : float = 0
     delta : float = 0
@@ -23,7 +25,11 @@ class DPHREG(HGraph):
             if self.Dist_Mat.size != 0:
                 dist_vec = self.Dist_Mat[v][nodes]
             else:
-                dist_vec = pairwise_distances(self.data[v].reshape(1,-1),self.data[nodes],metric='euclidean',n_jobs=-1).ravel()
+                #dist_vec = pairwise_distances(self.data[v].reshape(1,-1),self.data[nodes],metric='euclidean',n_jobs=-1).ravel()
+                v_tensor = torch.from_numpy(self.data[v].reshape(1,-1)).to(device)
+                nodes_tensor = torch.from_numpy(self.data[nodes]).to(device)
+                dist_vec = torch.pairwise_distance(v_tensor,nodes_tensor,p=2).ravel().to("cpu").numpy()
+
             sorted_dist_vec = np.sort(dist_vec)
 
             s_f = 0

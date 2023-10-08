@@ -125,7 +125,7 @@ class HGraph:
             self.num_of_layers = len(self.layers)
             #Procs = []
             for lc in range(self.num_of_layers-1,-1,-1):
-                #proc = mp.Process(target=self.build_layer,args=(lc,layer_vector_ids[lc]))
+                #proc = mp.Process(target=self.build_layer,args=(lc,))
                 #Procs.append(proc)
                 #proc.start()
                 self.build_layer(lc)

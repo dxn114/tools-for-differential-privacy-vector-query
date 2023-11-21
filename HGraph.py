@@ -11,6 +11,7 @@ class HGraph:
     ep : int = 0
     M_max : int = 0
     Dist_Mat : np.ndarray = np.zeros(0)
+    file = ""
 
     def __init__(self) -> None:
         self.layers = []
@@ -69,7 +70,7 @@ class HGraph:
         return _W
     
     def kNN_search(self,q:np.ndarray,K:int,ef:int)->list[int]:
-        print(f"Querying top-{K} ...")
+        print(f"Querying top-{K} from {self.file} ...")
         t = time.time()
         W = PriorityQueue()
         ep = self.ep
@@ -109,17 +110,17 @@ class HGraph:
             # self.precal_dist()
             
             self.num_of_vectors = self.data.shape[0]
-
+            l = (-np.log(np.random.rand(self.num_of_vectors))*mL).astype(int)#new element’s level
             for i in range(self.num_of_vectors):
                 L = len(self.layers)-1
-                l : int= int(-np.log(np.random.rand(1)[0])*mL)#new element’s level
-                if L<l:
+
+                if L<l[i]:
                     self.ep = i
 
-                while len(self.layers)-1<l:
+                while len(self.layers)-1<l[i]:
                     self.layers.append(nx.Graph())
 
-                for j in range(l+1):
+                for j in range(l[i]+1):
                     self.layers[j].add_node(i)
 
             self.num_of_layers = len(self.layers)
@@ -153,6 +154,7 @@ class HGraph:
             print(f"ERROR! Cannot load from file{os.path.basename(path)}")
 
     def save(self,path) -> None:
+        self.file = os.path.basename(path)
         with open(path, "wb") as f:
             pickle.dump(self,f)
             print(f"{self.__class__.__name__} saved to {os.path.basename(path)}")

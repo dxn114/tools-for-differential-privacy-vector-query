@@ -1,6 +1,7 @@
 import numpy as np,scipy as sp,os,multiprocessing as mp,networkx as nx
 from HGraph import HGraph
-from sklearn.neighbors import kneighbors_graph
+from torch_cluster import knn_graph
+import torch
 
 class HREG(HGraph):
     def build_layer(self, lc : int):
@@ -10,16 +11,14 @@ class HREG(HGraph):
             return
         d = min(layer_size-1, self.M_max)
         
-        layer_data = self.data[self.layers[lc].nodes()]
-        Adj_Mat = kneighbors_graph(layer_data,d,mode='distance',include_self=False)
-        nodelist = list(self.layers[lc].nodes())
-        for u in range(layer_size):
-            for v in range(u+1,layer_size):
-                if Adj_Mat[u,v] == 0:
-                    continue
-                v1 = nodelist[u]
-                v2 = nodelist[v]
-                self.layers[lc].add_edge(v1,v2,weight=Adj_Mat[u,v])
+        layer_nodes = list(self.layers[lc].nodes())
+        layer_data = torch.Tensor(self.data[layer_nodes])
+        gph = knn_graph(layer_data, d,batch=torch.zeros(len(layer_nodes)),num_workers=16,loop=False)
+        
+        for u,v in gph.T:
+            v1 = layer_nodes[u]
+            v2 = layer_nodes[v]
+            self.layers[lc].add_edge(v1,v2)
 
 
 if __name__ == '__main__':

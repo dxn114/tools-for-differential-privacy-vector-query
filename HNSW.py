@@ -2,6 +2,7 @@ import numpy as np,os,time,networkx as nx
 from queue import PriorityQueue
 from HGraph import HGraph
 import random
+from tqdm import trange
     
 class HNSW(HGraph):
     next_seqno:int = 0
@@ -79,7 +80,7 @@ class HNSW(HGraph):
             self.data = np.loadtxt(path,delimiter=',',dtype=int)
             self.num_of_vectors = self.data.shape[0]
             self.precal_dist()
-            for vid in range(self.num_of_vectors):
+            for vid in trange(self.num_of_vectors):
                 self.insert(self.data[vid],M,self.M_max,efConstr,mL,qid=vid)
             self.num_of_layers = len(self.layers)
             t = time.time()-t

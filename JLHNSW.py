@@ -2,6 +2,9 @@ from HNSW import HNSW
 import numpy as np
 import os,time
 from queue import PriorityQueue
+from tqdm import trange
+import psutil
+from sklearn.metrics import pairwise_distances
 
 def l2_sensitivity(P:np.ndarray):
     res = 0
@@ -34,11 +37,10 @@ class JLHNSW (HNSW):
             return self.Dist_Mat[vid,qid]
     def precal_dist(self)->None:
         size = self.noisy_data.shape[0]
-        F = np.ones((size,size),dtype=int)
-        for i in range(size):
-            d2 = int(np.inner(self.noisy_data[i],self.noisy_data[i]))
-            F[i] *= d2
-        self.Dist_Mat = F + np.transpose(F) - 2*(self.noisy_data @ (np.transpose(self.noisy_data)))
+        estimated_mem = (size**2)*4
+        if estimated_mem > psutil.virtual_memory().available:
+            return
+        self.Dist_Mat = pairwise_distances(self.noisy_data,metric='euclidean',n_jobs=-1)
     def build(self,path:str,M:int,efConstr):
         file_name = os.path.basename(path)
         class_name = self.__class__.__name__
@@ -62,7 +64,7 @@ class JLHNSW (HNSW):
 
             self.precal_dist()
 
-            for vid in range(self.num_of_vectors):
+            for vid in trange(self.num_of_vectors):
                 self.insert(self.noisy_data[vid],M,M_max,efConstr,mL,qid=vid)
 
             self.num_of_layers = len(self.layers)

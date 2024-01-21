@@ -2,6 +2,7 @@ import numpy as np,time,os,pickle,networkx as nx,matplotlib.pyplot as plt
 from queue import PriorityQueue
 import psutil
 from sklearn.metrics import pairwise_distances
+from sklearn.preprocessing import StandardScaler
 
 class HGraph:
     data : np.ndarray = np.zeros(0)
@@ -101,12 +102,15 @@ class HGraph:
         file_name = os.path.basename(path)
         class_name = self.__class__.__name__
         print(f"Building {class_name} from datafile {file_name} ...")
-        if(path.endswith(".csv")):
+        if(path.endswith(".csv") or  path.endswith(".npy")):
             t = time.time()
             self.M_max = 2*M
             mL:float = 1/(np.log(M))
-            self.data = np.loadtxt(path,delimiter=',',dtype=int)
-            
+            if path.endswith(".csv"):
+                self.data = np.loadtxt(path,delimiter=',')
+            elif path.endswith(".npy"):
+                self.data = np.load(path)
+            self.data = StandardScaler().fit_transform(self.data)
             # self.precal_dist()
             
             self.num_of_vectors = self.data.shape[0]

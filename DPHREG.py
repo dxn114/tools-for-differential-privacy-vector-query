@@ -1,51 +1,41 @@
 import numpy as np,os,networkx as nx
 from HGraph import HGraph
-import torch
-device = "cpu"
-if torch.cuda.is_available():
-    device = "cuda"
+from sklearn.metrics import pairwise_distances
+from joblib import Parallel,delayed
+from tqdm import trange
+def select_neighbors(data,nodes,idx,k,epsilon):
+    vec = data[idx].reshape(1,-1)
+    data = np.delete(data,idx,axis=0)
+    dist_v = pairwise_distances(vec,data).ravel() - np.random.gumbel(0,1/epsilon,data.shape[0])
+    k_smallest_indices = np.argpartition(dist_v,k)[:k]
+    adj_nodes = [nodes[idx] for idx in k_smallest_indices]
+    return adj_nodes
 class DPHREG(HGraph):
     epsilon : float = 0
-    delta : float = 0
-    def __init__(self,epsilon=0.2,delta=0.05) -> None:
+    def __init__(self,epsilon=0.5) -> None:
         super().__init__()
         self.epsilon = epsilon
-        self.delta = delta
     def build_layer(self, lc : int):
-        # privately select top-d
+        print(f"Building layer {lc}...")
         layer_size = self.layers[lc].number_of_nodes()
         if self.M_max >= layer_size-1:
             self.layers[lc] = nx.complete_graph(self.layers[lc].nodes())
             return
         nodes = list(self.layers[lc].nodes()) # list of vids in layer lc
-        m = layer_size-1
+        data = self.data[nodes]
         k = min(layer_size-1, self.M_max)
-        for v in self.layers[lc].nodes():
-            dist_vec = np.zeros(0) # distances from c to all other nodes in nodes
-            if self.Dist_Mat.size != 0:
-                dist_vec = self.Dist_Mat[v][nodes]
-            else:
-                v_tensor = torch.from_numpy(self.data[v].reshape(1,-1)).to(device)
-                nodes_tensor = torch.from_numpy(self.data[nodes]).to(device)
-                dist_vec = torch.pairwise_distance(v_tensor,nodes_tensor,p=2).ravel().to("cpu").numpy()
-
-            sorted_dist_vec = np.sort(dist_vec)
-
-            s_f = np.absolute(sorted_dist_vec[1:] - sorted_dist_vec[:-1]).max()
-
-            lambda_os = 8*s_f*np.sqrt(k*np.log(m/self.delta))/self.epsilon
-
-            noisy_dist_vec = dist_vec + np.random.laplace(0,lambda_os,size=dist_vec.shape)
-            
-            k_smallest_indices = np.argpartition(noisy_dist_vec,k)[:k]
-            adj_nodes = [nodes[idx] for idx in k_smallest_indices]
+        neighbors_list = Parallel(n_jobs=14)(delayed(select_neighbors)(data,nodes,idx,k,self.epsilon) for idx in trange(layer_size))
+        for idx,v in enumerate(nodes):
+            # dist_v = pairwise_distances(data[idx].reshape(1,-1),data).ravel() + np.random.gumbel(0,1/self.epsilon,layer_size)
+            # k_smallest_indices = np.argpartition(dist_v,k)[:k]
+            adj_nodes = neighbors_list[idx]
             for u in adj_nodes:
                 self.layers[lc].add_edge(u,v)
 
 if __name__ == '__main__':
     h = DPHREG()
-    dir_path = os.path.join(f"randvec_{h.__class__.__name__}","10^3") 
-    csv_path = os.path.join(dir_path,"randvec128_10^3.csv") 
+    dir_path = os.path.join(f"randvec_{h.__class__.__name__}","10^4") 
+    csv_path = os.path.join(dir_path,"randvec128_10^4.csv") 
     h_path = csv_path.replace(".csv",f".{h.__class__.__name__.lower()}")
     h.build(csv_path,16)
     h.save(h_path)

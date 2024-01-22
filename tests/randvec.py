@@ -17,7 +17,7 @@ def gen_randvec_file(*exp):
         filepath : str = os.path.join(dir_path, filename)
         f = open(filepath, "w")
         size = 10**i
-        rand_vec = np.random.randint(-1024,1023,size=(size,dim))
+        rand_vec = np.random.rand(size,dim)
         np.save(filepath,rand_vec)
         f.close()
     

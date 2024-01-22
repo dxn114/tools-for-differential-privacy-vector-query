@@ -4,9 +4,8 @@ from sklearn.metrics import pairwise_distances
 from joblib import Parallel,delayed
 from tqdm import trange
 def select_neighbors(data,nodes,idx,k,epsilon):
-    vec = data[idx].reshape(1,-1)
-    data = np.delete(data,idx,axis=0)
-    dist_v = pairwise_distances(vec,data).ravel() - np.random.gumbel(0,1/epsilon,data.shape[0])
+    dist_v = pairwise_distances(data[idx].reshape(1,-1),data).ravel()
+    dist_v = np.delete(dist_v,idx) - np.random.gumbel(0,1/epsilon,data.shape[0]-1)
     k_smallest_indices = np.argpartition(dist_v,k)[:k]
     adj_nodes = [nodes[idx] for idx in k_smallest_indices]
     return adj_nodes
@@ -24,7 +23,7 @@ class DPHREG(HGraph):
         nodes = list(self.layers[lc].nodes()) # list of vids in layer lc
         data = self.data[nodes]
         k = min(layer_size-1, self.M_max)
-        neighbors_list = Parallel(n_jobs=14)(delayed(select_neighbors)(data,nodes,idx,k,self.epsilon) for idx in trange(layer_size))
+        neighbors_list = Parallel(n_jobs=15)(delayed(select_neighbors)(data,nodes,idx,k,self.epsilon) for idx in trange(layer_size))
         for idx,v in enumerate(nodes):
             # dist_v = pairwise_distances(data[idx].reshape(1,-1),data).ravel() + np.random.gumbel(0,1/self.epsilon,layer_size)
             # k_smallest_indices = np.argpartition(dist_v,k)[:k]

@@ -2,7 +2,6 @@ import numpy as np,time,os,pickle,networkx as nx,matplotlib.pyplot as plt
 from queue import PriorityQueue
 import psutil
 from sklearn.metrics import pairwise_distances
-from sklearn.preprocessing import StandardScaler
 
 class HGraph:
     data : np.ndarray = np.zeros(0)
@@ -110,7 +109,6 @@ class HGraph:
                 self.data = np.loadtxt(path,delimiter=',')
             elif path.endswith(".npy"):
                 self.data = np.load(path)
-            self.data = StandardScaler().fit_transform(self.data)
             # self.precal_dist()
             
             self.num_of_vectors = self.data.shape[0]

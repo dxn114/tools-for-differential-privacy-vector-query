@@ -62,13 +62,13 @@ def test_randvec(exp)->None:
 
 def build_model(vecfile_path,model_path,epsilon=0.2):
     exp = int(vecfile_path[-5])
-    M = 0
+    M = 2**(exp+1)
     if exp ==3:
         M = 8
     elif exp ==4:
         M = 32
     elif exp ==5:
-        M = 64
+        M = 96
     elif exp ==6:
         M = 128
     
@@ -77,7 +77,7 @@ def build_model(vecfile_path,model_path,epsilon=0.2):
     h.save(model_path)
 
 def build_from_file(vecfile_path:str):
-    epsilons = [0.01,0.05,0.1,0.2,0.5,1,2]
+    epsilons = [0.01,0.05,0.1,0.2,0.5,1,2,5,10]
     # deltas = [0.01,0.02,0.05,0.1]
     dir_path = os.path.dirname(vecfile_path)
     if("epsilon" not in os.listdir(dir_path)):
@@ -116,7 +116,7 @@ def build_from_file(vecfile_path:str):
 datasets_dir=f"randvec_{class_name}"  
 
 if __name__ == "__main__":
-    exps = [3,4,5,6]
+    exps = [3,4,5]
     for exp in exps:
         build_from_file(os.path.join(datasets_dir,f"10^{exp}",f"randvec128_10^{exp}.npy"))
         test_randvec(exp)

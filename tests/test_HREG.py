@@ -1,6 +1,6 @@
 import os,multiprocessing as mp,sys
 sys.path.append(os.path.abspath("."))
-from randvec import gen_randvec
+import numpy as np
 from HREG import HREG
 
 class_name = "HREG"
@@ -12,13 +12,13 @@ def test_randvec()->None:
     ef= 200
     for i in range(10):
         line = f"Acc{i}/%,"
-        exps = [3,4]
+        exps = [3,4,5]
         for exp in exps:
             dir_path = os.path.join(dataset,f"10^{exp}")
             for f in os.listdir(dir_path):
                 hreg : HREG = HREG()
                 if(f.endswith(ext)):
-                    q = gen_randvec(128)
+                    q = np.random.rand(128)
                     print("======================================")
                     model_path = os.path.join(dir_path,f)
                     hreg.load(model_path)
@@ -37,18 +37,10 @@ def test_randvec()->None:
 
 def build_from_file(path:str):
     exp = int(path[-5])
-    M = 0
-    if exp ==3:
-        M = 8
-    elif exp ==4:
-        M = 16
-    elif exp ==5:
-        M = 32
-    elif exp ==6:
-        M = 48
+    M = 2**exp
 
     dir_name = os.path.dirname(path)
-    hnsw_path = path.replace(".csv",ext)
+    hnsw_path = path.replace(".npy",ext)
     
     if(os.path.basename(hnsw_path) not in os.listdir(dir_name)):
         hreg = HREG()
@@ -60,9 +52,9 @@ def build_for_all():
     for dir_name in os.listdir(dataset):
         dir_path = os.path.join(dataset,dir_name)
         for f in os.listdir(dir_path):
-            if(f.endswith(".csv")):
+            if(f.endswith(".npy")):
                 file_path = os.path.join(dir_path,f)
-                if (f.replace(".csv",ext) not in os.listdir(dir_path)):
+                if (f.replace(".npy",ext) not in os.listdir(dir_path)):
                     build_from_file(file_path)
 
         

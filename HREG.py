@@ -1,4 +1,4 @@
-import numpy as np,scipy as sp,os,multiprocessing as mp,networkx as nx
+import os,networkx as nx
 from HGraph import HGraph
 from torch_cluster import knn_graph
 import torch
@@ -11,13 +11,14 @@ class HREG(HGraph):
             return
         d = min(layer_size-1, self.M_max)
         
-        layer_nodes = list(self.layers[lc].nodes())
-        layer_data = torch.Tensor(self.data[layer_nodes])
-        gph = knn_graph(layer_data, d,batch=torch.zeros(len(layer_nodes)),num_workers=16,loop=False)
-        
+        nodes = list(self.layers[lc].nodes())
+        data = self.data[nodes]
+        layer_data = torch.tensor(data,device=torch.device('cuda'))
+        gph = knn_graph(layer_data, d,batch=torch.zeros(len(nodes)),loop=False)
+        gph = gph.cpu().numpy()
         for u,v in gph.T:
-            v1 = layer_nodes[u]
-            v2 = layer_nodes[v]
+            v1 = nodes[u]
+            v2 = nodes[v]
             self.layers[lc].add_edge(v1,v2)
 
 

@@ -37,6 +37,12 @@ class HGraph:
             return np.linalg.norm(d)
         else:
             return self.Dist_Mat[vid,qid]
+        
+    def pw_dist(self,q : np.ndarray,vids,qids=None):
+        if qids == None or self.Dist_Mat.size == 0:
+            return pairwise_distances(q.reshape(1,-1),self.data[vids],metric='euclidean',n_jobs=-1).ravel()
+        else:
+            return self.Dist_Mat[vids,qids]
 
     def search_layer(self,q:np.ndarray,ep:int,ef:int,lc:int,qid : int = None)->PriorityQueue:
         v = {ep}

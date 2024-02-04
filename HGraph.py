@@ -182,3 +182,9 @@ class HGraph:
             nx.draw_networkx(self.layers[i],pos=nx.spring_layout(self.layers[i],k=n**2,scale=n**4))
             plt.savefig(os.path.join(path,"layer_view",f"layer{i}.jpg"))
             plt.clf()
+
+class DPHGraph(HGraph):
+    epsilon : float = 0
+    def __init__(self,epsilon=0.5) -> None:
+        super().__init__()
+        self.epsilon = epsilon

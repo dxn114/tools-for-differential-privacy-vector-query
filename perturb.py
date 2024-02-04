@@ -7,13 +7,15 @@ from tqdm import trange
 import os
 t = time.time()
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-exp = 4
+exp = 3
 dim = 128
-K = [10,20,50,100]
+K = [10,20]
 data_type = ''
 data = torch.Tensor([])
 pw_dist = torch.Tensor([])
 pw_dist_new = torch.Tensor([])
+low = 0
+high = 1024
 
 def perturb_i(i,idx):
     # f, g for all v in the ith perturbation
@@ -55,14 +57,14 @@ def random_perturb_int(perturb_time=10000):
     else:
         global data,data_type
         if data_type != 'int':
-            data = torch.randint(0,256,size=(10**exp,dim),device=device,dtype=float)
+            data = torch.randint(low,high,size=(10**exp,dim),device=device,dtype=float)
             data_type = 'int'
-        new = torch.randint(0,256,size=(perturb_time,dim),device=device,dtype=float)
+        new = torch.randint(low,high,size=(perturb_time,dim),device=device,dtype=float)
         indices = np.random.randint(0,10**exp,size=(perturb_time,))
         freqK = perturb(indices,new,K)
         np.save(f"randvec/10^{exp}/random_perturb_int_freqK.npy",freqK)
 
-    plot(freqK,f"randvec/10^{exp}/random_perturb_int_freqk.png")
+    hist(freqK,f"randvec/10^{exp}/random_perturb_int_freqk.png")
 
 def random_perturb_int_8d(perturb_time=10000):
     if os.path.exists(f"randvec/10^{exp}/random_perturb_int_8d_freqK.npy"):
@@ -70,16 +72,16 @@ def random_perturb_int_8d(perturb_time=10000):
     else:
         global data,data_type
         if data_type != 'int':
-            data = torch.randint(0,256,size=(10**exp,dim),device=device,dtype=float)
+            data = torch.randint(low,high,size=(10**exp,dim),device=device,dtype=float)
             data_type = 'int'
-        new_dims = torch.randint(0,256,size=(perturb_time,8),device=device,dtype=float)
+        new_dims = torch.randint(low,high,size=(perturb_time,8),device=device,dtype=float)
         indices = np.random.randint(0,10**exp,size=(perturb_time,))
         new = data[indices]
         new[:,:8] = new_dims
         freqK = perturb(indices,new,K)
         np.save(f"randvec/10^{exp}/random_perturb_int_8d_freqK.npy",freqK)
 
-    plot(freqK,f"randvec/10^{exp}/random_perturb_int_8d_freqk.png")
+    hist(freqK,f"randvec/10^{exp}/random_perturb_int_8d_freqk.png")
 
 def random_perturb_01(perturb_time=10000):
     if os.path.exists(f"randvec/10^{exp}/random_perturb_01_freqK.npy"):
@@ -97,7 +99,7 @@ def random_perturb_01(perturb_time=10000):
         freqK = perturb(indices,new,K)
         np.save(f"randvec/10^{exp}/random_perturb_01_freqK.npy",freqK)
 
-    plot(freqK,f"randvec/10^{exp}/random_perturb_01_freqk.png")
+    hist(freqK,f"randvec/10^{exp}/random_perturb_01_freqk.png")
 
 def random_perturb_01_8d(perturb_time=10000):
     if os.path.exists(f"randvec/10^{exp}/random_perturb_01_8d_freqK.npy"):
@@ -117,9 +119,9 @@ def random_perturb_01_8d(perturb_time=10000):
         freqK = perturb(indices,new,K)
         np.save(f"randvec/10^{exp}/random_perturb_01_8d_freqK.npy",freqK)
     
-    plot(freqK,f"randvec/10^{exp}/random_perturb_01_8d_freqk.png")
+    hist(freqK,f"randvec/10^{exp}/random_perturb_01_8d_freqk.png")
 
-def plot(freqK,path):
+def hist(freqK,path):
     mu = np.mean(freqK,axis=1)
     for i,freqk in enumerate(freqK):
         k = K[i]
@@ -133,9 +135,60 @@ def plot(freqK,path):
     plt.savefig(path)
     plt.close()
 
-random_perturb_int()
-random_perturb_int_8d()
-random_perturb_01()
-random_perturb_01_8d()
+def plot(freqK,path):
+    plt.figure(figsize=(30,10))
+    for i,freqk in enumerate(freqK):
+        k = K[i]
+        plt.plot(freqk,label=f"$k={k}$")
+    plt.xlabel(f"$dist$")
+    plt.ylabel(f"$X_k$")
+    plt.title(f"k = {K}")
+    plt.legend()
+    plt.savefig(path)
+    plt.close()
+
+def dist_perturb_int(perturb_time=1000):
+    if os.path.exists(f"randvec/10^{exp}/dist_perturb_int_freqK.npy"):
+        freqK = np.load(f"randvec/10^{exp}/dist_perturb_int_freqK.npy")
+    else:
+        global data,data_type
+        if data_type != 'int':
+            data = torch.randint(low,high,size=(10**exp,dim),device=device,dtype=float)
+            data_type = 'int'
+        new = torch.randint(low,high,size=(perturb_time,dim),device=device,dtype=float)
+        idx = np.random.randint(0,10**exp)
+        indices = idx*np.ones((perturb_time,),dtype=int)
+        for i ,v in enumerate(new):
+            new[i] = data[idx]+(v/torch.norm(v))*i
+        freqK = perturb(indices,new,K)
+        np.save(f"randvec/10^{exp}/dist_perturb_int_freqK.npy",freqK)
+
+    plot(freqK,f"randvec/10^{exp}/dist_perturb_int_freqk.png")
+
+def dist_perturb_fix_direction_int(perturb_time=1000):
+    if os.path.exists(f"randvec/10^{exp}/dist_perturb_fix_direction_int_freqK.npy"):
+        freqK = np.load(f"randvec/10^{exp}/dist_perturb_fix_direction_int_freqK.npy")
+    else:
+        global data,data_type
+        if data_type != 'int':
+            data = torch.randint(low,high,size=(10**exp,dim),device=device,dtype=float)
+            data_type = 'int'
+        new = torch.zeros(size=(perturb_time,dim),device=device,dtype=float)
+        delta = torch.randint(low,high,size=(dim,),device=device,dtype=float)
+        delta = delta/torch.norm(delta)
+        idx = np.random.randint(0,10**exp)
+        indices = idx*np.ones((perturb_time,),dtype=int)
+        for i in range(perturb_time):
+            new[i] = data[idx]+i*delta
+        freqK = perturb(indices,new,K)
+        np.save(f"randvec/10^{exp}/dist_perturb_fix_direction_int_freqK.npy",freqK)
+
+    plot(freqK,f"randvec/10^{exp}/dist_perturb_fix_direction_int_freqk.png")
+# random_perturb_int()
+# random_perturb_int_8d()
+# random_perturb_01()
+# random_perturb_01_8d()
+dist_perturb_int()
+dist_perturb_fix_direction_int()
 t = time.time()-t
 print(f"Time taken: {t} seconds")

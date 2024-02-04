@@ -1,8 +1,8 @@
 import sys,os,multiprocessing as mp,matplotlib.pyplot as plt
 sys.path.append(os.path.abspath("."))
-from DPHREG import DPHREG
+from LapHREG import LapHREG
 import numpy as np
-class_name = "DPHREG"
+class_name = "LapHREG"
 ext = f".{class_name.lower()}"
 def test_randvec(exp)->None:
     out = open(f"out({class_name}).csv", "w")
@@ -19,7 +19,7 @@ def test_randvec(exp)->None:
         dir_path = os.path.join(dataset,test_set)
         avgs = {}
         for f in os.listdir(dir_path):
-            h = DPHREG()
+            h = LapHREG()
             if f.endswith(ext):
                 sum = 0
                 line = f+','
@@ -43,8 +43,6 @@ def test_randvec(exp)->None:
                 avg = sum/10.0
                 if test_set=="epsilon":
                     avgs[h.epsilon] = avg
-                # elif test_set=="delta":
-                #     avgs[h.delta] = avg
                 line += f"{avg}\n"
                 out.write(line)
         
@@ -62,31 +60,19 @@ def test_randvec(exp)->None:
 
 def build_model(vecfile_path,model_path,epsilon=0.2):
     exp = int(vecfile_path[-5])
-    M = 2**(exp+1)
-    if exp ==3:
-        M = 8
-    elif exp ==4:
-        M = 32
-    elif exp ==5:
-        M = 96
-    elif exp ==6:
-        M = 128
+    M = 2**exp
     
-    h = DPHREG(epsilon=epsilon)
+    h = LapHREG(epsilon=epsilon)
     h.build(vecfile_path,M)
     h.save(model_path)
 
 def build_from_file(vecfile_path:str):
     epsilons = [0.01,0.05,0.1,0.2,0.5,1,2,5,10]
-    # deltas = [0.01,0.02,0.05,0.1]
     dir_path = os.path.dirname(vecfile_path)
     if("epsilon" not in os.listdir(dir_path)):
         os.mkdir(os.path.join(dir_path,"epsilon"))
-    # if("delta" not in os.listdir(dir_path)):
-    #     os.mkdir(os.path.join(dir_path,"delta"))
     file_name = os.path.basename(vecfile_path)
 
-    # procs = []
     test_name = "epsilon"
     for epsilon in epsilons:
         priv_budget_info=f"epsilon={epsilon}_"
@@ -95,23 +81,6 @@ def build_from_file(vecfile_path:str):
         
         if(os.path.basename(h_path) not in os.listdir(test_path)):
             build_model(vecfile_path,h_path,epsilon)
-            # p=mp.Process(target=build_model,args=(vecfile_path,h_path,epsilon))
-            # procs.append(p)
-
-    # test_name = "delta"
-    # for delta in deltas:
-    #     priv_budget_info=f"delta={delta}_"
-    #     test_path = os.path.join(dir_path,test_name) 
-    #     h_path = os.path.join(dir_path,test_name,priv_budget_info+file_name.replace(".csv",ext))
-        
-    #     if(os.path.basename(h_path) not in os.listdir(test_path)):
-    #         p=mp.Process(target=build_model,args=(vecfile_path,h_path,0.2,delta))
-    #         procs.append(p)
-
-    # for p in procs:
-    #     p.start()
-    # for p in procs:
-    #     p.join()
 
 datasets_dir=f"randvec_{class_name}"  
 

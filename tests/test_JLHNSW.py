@@ -1,6 +1,6 @@
 import sys,os,multiprocessing as mp,matplotlib.pyplot as plt
 sys.path.append(os.path.abspath("."))
-from randvec import gen_randvec
+import numpy as np
 from JLHNSW import JLHNSW
     
 def test_randvec(exp)->None:
@@ -27,7 +27,7 @@ def test_randvec(exp)->None:
                 hnsw.load(model_path)
 
                 for t in range(10):
-                    q = gen_randvec(128)
+                    q = np.random.rand(128)
                     print("======================================")
             
                     res = hnsw.kNN_search(q,K,ef)
@@ -87,17 +87,9 @@ def build_JLHNSW(vecfile_path,model_path,k_OPT,epsilon,delta,M,efConstr,use_heu)
     hnsw.save(model_path)
 
 def build_from_file(path:str):
-    scale = int(path[-5])
-    M = 0
+    exp = int(path[-5])
+    M = 2**exp
     efConstr = 100
-    if scale ==3:
-        M = 8
-    elif scale ==4:
-        M = 16
-    elif scale ==5:
-        M = 32
-    elif scale ==6:
-        M = 48
 
     epsilons = [1,2,5,10]
     deltas = [0.01,0.02,0.05,0.1]

@@ -2,52 +2,43 @@ import numpy as np,time,os,pickle,networkx as nx,matplotlib.pyplot as plt
 from queue import PriorityQueue
 import psutil
 from sklearn.metrics import pairwise_distances
+from sklearn.cluster import MiniBatchKMeans
+from scipy.spatial import KDTree
 
 class HGraph:
-    data : np.ndarray = np.zeros(0)
+    data : np.ndarray = np.array([])
+    data_file : str = ""
     layers : list[nx.Graph] = []
     num_of_layers : int = 0
     num_of_vectors : int = 0
     ep : int = 0
     M_max : int = 0
-    Dist_Mat : np.ndarray = np.zeros(0)
+    quantize : bool = False
+    Dist_Mat : np.ndarray = np.array([])
     file = ""
 
-    def __init__(self) -> None:
+    def __init__(self,path : str = None) -> None:
         self.layers = []
-    def dist_square_sum(self,x : np.ndarray, lc : int, A : nx.Graph) -> float:
-        # x gives the order of nodes
-        vector_ids = [self.layers[lc].nodes()[i] for i in x]
-        H : float = 0
-        for u,v in A.edges:
-            v1 = vector_ids[u]
-            v2 = vector_ids[v]
-            H += self.dist(self.data[v1],v2,v1)
-        return H
-    
-    def precal_dist(self)->None:
-        size = self.data.shape[0]
-        estimated_mem = (size**2)*4
-        if estimated_mem > psutil.virtual_memory().available:
-            return
-        self.Dist_Mat = pairwise_distances(self.data,metric='euclidean',n_jobs=-1)
-    def dist(self,q : np.ndarray,vid:int,qid:int=None):
-        if qid == None or self.Dist_Mat.size == 0:
-            d = q-self.data[vid]
-            return np.linalg.norm(d)
-        else:
-            return self.Dist_Mat[vid,qid]
-        
-    def pw_dist(self,q : np.ndarray,vids,qids=None):
-        if qids == None or self.Dist_Mat.size == 0:
-            return pairwise_distances(q.reshape(1,-1),self.data[vids],metric='euclidean',n_jobs=-1).ravel()
-        else:
-            return self.Dist_Mat[vids,qids]
+        if path is not None:
+            file_name = os.path.basename(path)
+            self.data_file = file_name
+            if(path.endswith(".csv") or  path.endswith(".npy")):
+                if path.endswith(".csv"):
+                    self.data = np.loadtxt(path,delimiter=',')
+                elif path.endswith(".npy"):
+                    self.data = np.load(path,allow_pickle=True)
+                self.num_of_vectors = self.data.shape[0]
+            else: 
+                print(f"ERROR! Cannot read file{file_name}") 
+ 
+    def __dist__(self,q : np.ndarray,vid:int):
+        d = q-self.data[vid]
+        return np.linalg.norm(d)
 
-    def search_layer(self,q:np.ndarray,ep:int,ef:int,lc:int,qid : int = None)->PriorityQueue:
+    def search_layer(self,q:np.ndarray,ep:int,ef:int,lc:int)->PriorityQueue:
         v = {ep}
         C = PriorityQueue()
-        dqep = self.dist(q,ep,qid)
+        dqep = self.__dist__(q,ep)
         C.put((dqep,ep))#increasing order
         W = PriorityQueue()
         W.put((-dqep,ep))#decreasing order
@@ -61,7 +52,7 @@ class HGraph:
                 if e not in v:
                     v.add(e)
                     f = W.queue[0]
-                    deq = self.dist(q,e,qid)
+                    deq = self.__dist__(q,e)
                     if deq < -f[0] or W_size<ef:
                         C.put((deq,e))
                         W.put((-deq,e))
@@ -96,57 +87,59 @@ class HGraph:
         dist_vec = pairwise_distances(np.array([q]),self.data,metric='euclidean',n_jobs=-1).ravel()
         res = np.argsort(dist_vec)[:K].tolist()
         t = time.time()-t
-        print(f"Real result retrieved in {t:.3f} seconds.")
         return res
 
     
     def build_layer(self, lc):
-        pass
+        pass     
 
-    def build(self,path:str,M:int):
-        file_name = os.path.basename(path)
+    def build(self,M:int,quantize = False):
         class_name = self.__class__.__name__
-        print(f"Building {class_name} from datafile {file_name} ...")
-        if(path.endswith(".csv") or  path.endswith(".npy")):
+        if(self.data.size>0):
+            print(f"Building {class_name} from {self.data_file} ...")
             t = time.time()
             self.M_max = 2*M
             mL:float = 1/(np.log(M))
-            if path.endswith(".csv"):
-                self.data = np.loadtxt(path,delimiter=',')
-            elif path.endswith(".npy"):
-                self.data = np.load(path)
-            # self.precal_dist()
-            
-            self.num_of_vectors = self.data.shape[0]
             l = (-np.log(np.random.rand(self.num_of_vectors))*mL).astype(int)#new element’s level
+            self.quantize = quantize
+            num_nodes = []
             for i in range(self.num_of_vectors):
-                L = len(self.layers)-1
-
-                if L<l[i]:
-                    self.ep = i
 
                 while len(self.layers)-1<l[i]:
                     self.layers.append(nx.Graph())
+                    num_nodes.append(0)
 
                 for j in range(l[i]+1):
-                    self.layers[j].add_node(i)
+                    num_nodes[j] += 1
+            
+            self.layers[0].add_nodes_from(range(self.num_of_vectors))
+
+            if not quantize:
+                for i in range(1,len(self.layers)):
+                    data_nodes = np.array(self.layers[i-1].nodes())
+                    choice = np.random.choice(data_nodes,num_nodes[i],replace=False)
+                    self.layers[i].add_nodes_from(choice)
+            else:
+                for i in range(1,len(self.layers)):
+                    data_nodes = np.array(self.layers[i-1].nodes())
+                    data = self.data[data_nodes]
+                    kmeans = MiniBatchKMeans(n_clusters=num_nodes[i],n_init='auto').fit(data)
+                    means = kmeans.cluster_centers_
+                    tree = KDTree(data)
+                    nodes_idx = tree.query(means,k=1,workers=-1)[1]
+                    self.layers[i].add_nodes_from(data_nodes[nodes_idx])
 
             self.num_of_layers = len(self.layers)
-            #Procs = []
+            self.ep = list(self.layers[-1].nodes())[0]
+            
             for lc in range(self.num_of_layers-1,-1,-1):
-                #proc = mp.Process(target=self.build_layer,args=(lc,))
-                #Procs.append(proc)
-                #proc.start()
                 self.build_layer(lc)
 
-            #for proc in Procs:
-            #    proc.join()
             self.Dist_Mat = np.zeros(0)
-            dim = self.data.shape[1]
             t = time.time()-t
-            print(f"{class_name} for {self.num_of_vectors} {dim}D vectors built in {t:.3f} seconds.")
+            print(f"{class_name} from data file {self.data_file} built in {t:.3f} seconds.")
         else: 
-            print(f"ERROR! Cannot build from file{file_name}")
+            print(f"ERROR! No data to build {class_name} from.")
 
     def load(self,path:str):
         class_name = self.__class__.__name__
@@ -185,6 +178,6 @@ class HGraph:
 
 class DPHGraph(HGraph):
     epsilon : float = 0
-    def __init__(self,epsilon=0.5) -> None:
-        super().__init__()
+    def __init__(self,epsilon=1,path : str = None) -> None:
+        super().__init__(path)
         self.epsilon = epsilon

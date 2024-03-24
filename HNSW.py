@@ -2,11 +2,11 @@ import numpy as np,os,time,networkx as nx
 from queue import PriorityQueue
 from HGraph import HGraph
 import random
-from tqdm import trange
+from tqdm import tqdm
     
 class HNSW(HGraph):
     next_seqno:int = 0
-    def select_neighbors(self,q:np.ndarray,C:PriorityQueue,M:int,lc:int,extCand:bool,keepPrunedConn:bool,qid:int = None)->PriorityQueue:
+    def select_neighbors(self,q:np.ndarray,C:PriorityQueue,M:int,lc:int,extCand:bool,keepPrunedConn:bool)->PriorityQueue:
         C_ = PriorityQueue()
         i=0
         for c in C.queue:
@@ -16,7 +16,7 @@ class HNSW(HGraph):
             i+=1
         return C_
 
-    def insert(self, q:np.array, M:int, M_max:int, efConstr:int, mL:float,qid:int = None)->None:
+    def insert(self, q:np.array, M:int, M_max:int, efConstr:int, mL:float)->None:
 
         W = PriorityQueue() #list for the currently found nearest elements
         ep : int = self.ep  #get enter point for hnsw
@@ -25,17 +25,17 @@ class HNSW(HGraph):
             
         if(L>l):
             for lc in range(L,l,-1):
-                W = self.search_layer(q,ep,1,lc,qid)
+                W = self.search_layer(q,ep,1,lc)
                 ep = W.queue[0][1]
 
         for lc in range(min(L,l),-1,-1):
-            W = self.search_layer(q,ep,efConstr,lc,qid)
+            W = self.search_layer(q,ep,efConstr,lc)
             neighbors_q :PriorityQueue = PriorityQueue()
 
             extConn = True
             keepPrunedConn= True
             
-            neighbors_q = self.select_neighbors(q,W,M,lc,extConn,keepPrunedConn,qid)
+            neighbors_q = self.select_neighbors(q,W,M,lc,extConn,keepPrunedConn)
 
             neighbors : list[int] = [n[1] for n in neighbors_q.queue]
             #add bidirectionall connectionts from neighbors to q at layer lc
@@ -48,9 +48,9 @@ class HNSW(HGraph):
                 if(len(eConn)>M_max):
                     eConn_q : PriorityQueue = PriorityQueue()
                     for ec in eConn:
-                        eConn_q.put((self.dist(self.data[e],ec,qid=e),ec))
+                        eConn_q.put((self.__dist__(self.data[e],ec),ec))
                     new_eConn_q : PriorityQueue = PriorityQueue()
-                    new_eConn_q = self.select_neighbors(self.data[e],eConn_q,M_max,lc,extConn,keepPrunedConn,qid=e)
+                    new_eConn_q = self.select_neighbors(self.data[e],eConn_q,M_max,lc,extConn,keepPrunedConn)
                     new_eConn = [n[1] for n in new_eConn_q.queue]
                     for nec in new_eConn:
                         self.layers[lc].add_edge(e,nec)
@@ -69,33 +69,30 @@ class HNSW(HGraph):
             self.ep = self.next_seqno
         self.next_seqno+=1
         
-    def build(self,path:str,M:int,efConstr):
-        file_name = os.path.basename(path)
+    def build(self,M:int,efConstr):
         class_name = self.__class__.__name__
-        print(f"Building {class_name} from datafile {file_name} ...")
-        if(path.endswith(".csv")):
+        if(self.data.size>0):
+            print(f"Building {class_name} from datafile {self.data_file} ...")
             t = time.time()
+            self.M = M
             self.M_max = 2*M
             mL:float = 1/(np.log(M))
-            self.data = np.loadtxt(path,delimiter=',',dtype=int)
-            self.num_of_vectors = self.data.shape[0]
-            self.precal_dist()
-            for vid in trange(self.num_of_vectors):
-                self.insert(self.data[vid],M,self.M_max,efConstr,mL,qid=vid)
+            for q in tqdm(self.data):
+                self.insert(q,self.M,self.M_max,efConstr,mL)
             self.num_of_layers = len(self.layers)
             t = time.time()-t
-            dim = self.data.shape[1]
             
-            print(f"{class_name} for {self.num_of_vectors} {dim}D vectors built in {t:.3f} seconds.")
+            print(f"{class_name} from data file {self.data_file} built in {t:.3f} seconds.")
         else: 
-            print(f"ERROR! Cannot build from file{file_name}")
+            print(f"ERROR! No data to build {class_name} from.")
 
 if __name__ == '__main__':
-    h = HNSW()
-    dir_path = os.path.join(f"randvec_{h.__class__.__name__}","10^3") 
-    csv_path = os.path.join(dir_path,"randvec128_10^3.csv") 
-    h_path = csv_path.replace(".csv",f".{h.__class__.__name__.lower()}")
-    h.build(csv_path,16,100)
+    class_name = HNSW.__name__
+    dir_path = os.path.join(f"randvec","10^3") 
+    npy_path = os.path.join(dir_path,"randvec_10^3.npy")
+    h = HNSW(npy_path)
+    h.build(8,100)
+    h_path = npy_path.replace(".npy",f".{class_name.lower()}")
     h.save(h_path)
     n = HNSW()
     n.load(h_path)

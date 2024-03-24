@@ -1,6 +1,5 @@
 import numpy as np,time,os,pickle,networkx as nx,matplotlib.pyplot as plt
 from queue import PriorityQueue
-import psutil
 from sklearn.metrics import pairwise_distances
 from sklearn.cluster import MiniBatchKMeans
 from scipy.spatial import KDTree
@@ -12,9 +11,8 @@ class HGraph:
     num_of_layers : int = 0
     num_of_vectors : int = 0
     ep : int = 0
+    M : int = 0
     M_max : int = 0
-    quantize : bool = False
-    Dist_Mat : np.ndarray = np.array([])
     file = ""
 
     def __init__(self,path : str = None) -> None:
@@ -93,49 +91,27 @@ class HGraph:
     def build_layer(self, lc):
         pass     
 
-    def build(self,M:int,quantize = False):
+    def build(self,M:int):
         class_name = self.__class__.__name__
         if(self.data.size>0):
             print(f"Building {class_name} from {self.data_file} ...")
             t = time.time()
-            self.M_max = 2*M
             mL:float = 1/(np.log(M))
-            l = (-np.log(np.random.rand(self.num_of_vectors))*mL).astype(int)#new element’s level
-            self.quantize = quantize
-            num_nodes = []
+            l = (-np.log(np.random.rand(self.num_of_vectors))*mL).astype(int)# new element’s level (count from 0)
+            self.M = M
+            self.M_max = 2*M            
             for i in range(self.num_of_vectors):
-
-                while len(self.layers)-1<l[i]:
+                while len(self.layers)-1 < l[i]:
                     self.layers.append(nx.Graph())
-                    num_nodes.append(0)
-
                 for j in range(l[i]+1):
-                    num_nodes[j] += 1
-            
-            self.layers[0].add_nodes_from(range(self.num_of_vectors))
-
-            if not quantize:
-                for i in range(1,len(self.layers)):
-                    data_nodes = np.array(self.layers[i-1].nodes())
-                    choice = np.random.choice(data_nodes,num_nodes[i],replace=False)
-                    self.layers[i].add_nodes_from(choice)
-            else:
-                for i in range(1,len(self.layers)):
-                    data_nodes = np.array(self.layers[i-1].nodes())
-                    data = self.data[data_nodes]
-                    kmeans = MiniBatchKMeans(n_clusters=num_nodes[i],n_init='auto').fit(data)
-                    means = kmeans.cluster_centers_
-                    tree = KDTree(data)
-                    nodes_idx = tree.query(means,k=1,workers=-1)[1]
-                    self.layers[i].add_nodes_from(data_nodes[nodes_idx])
+                    self.layers[j].add_node(i)
 
             self.num_of_layers = len(self.layers)
-            self.ep = list(self.layers[-1].nodes())[0]
+            self.ep = int(list(self.layers[-1].nodes())[-1])
             
             for lc in range(self.num_of_layers-1,-1,-1):
                 self.build_layer(lc)
 
-            self.Dist_Mat = np.zeros(0)
             t = time.time()-t
             print(f"{class_name} from data file {self.data_file} built in {t:.3f} seconds.")
         else: 

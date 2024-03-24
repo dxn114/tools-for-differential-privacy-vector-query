@@ -92,11 +92,11 @@ def create_datafile(dataset_name,data_train,data_test):
         if exp==data_exp:
             np.save(filepath,data_train)
         else:
-            choice = np.random.choice(data_train.shape[0], int(data_train.shape[0]*exp/data_exp), replace=False)
+            choice = np.random.choice(data_train.shape[0], int(data_train.shape[0]*(10**(exp-data_exp))), replace=False)
             np.save(filepath,data_train[choice])
         f.close()  
 
-def cifar10(extract_features:bool=False)->None:
+def CIFAR10(extract_features:bool=False)->None:
     from torchvision.datasets import CIFAR10
     dataset_name = "CIFAR10"
     data_dir = dataset_name
@@ -122,8 +122,24 @@ def MNIST(extract_features:bool=False)->None:
 
     create_datafile(dataset_name,data_train,data_test)   
 
+def GloVe():
+    dataset_name = "GloVe"
+    data_dir = dataset_name
+    if not os.path.exists(data_dir):
+        os.makedirs(data_dir)
+    file_name = "glove.6B.50d.txt"
+    data = []
+    with open(os.path.join(data_dir,file_name), "r",encoding="utf-8") as f:
+        for line in f:
+            line_split = line.split()[1:]
+            data.append(line_split)
+    data = np.array(data[:-1],dtype=float)
+    from sklearn.model_selection import train_test_split
+    data_train, data_test = train_test_split(data, test_size=0.1)
+    create_datafile(dataset_name,data_train,data_test)
+            
 
 if __name__ == "__main__":
     gen_randvec_file(3,4,5,6)
-    # cifar10(extract_features=True)
-    # MNIST(extract_features=False)
+    MNIST(extract_features=False)
+    GloVe()

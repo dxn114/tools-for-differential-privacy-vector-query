@@ -4,12 +4,10 @@ import numpy as np
 from HREG import HREG
 
 class LapHREG(DPHGraph):
-    random_edges = False
-    def build(self,M:int,quantize = False,random_edges = False):
+    def build(self,M:int):
         noise = np.random.laplace(0,1/self.epsilon,self.data.shape)
         self.data += noise
-        self.random_edges = random_edges
-        super().build(M,quantize)
+        super().build(M)
         self.data -= noise
 
     def build_layer(self, lc : int):
@@ -19,8 +17,8 @@ class LapHREG(DPHGraph):
 if __name__ == '__main__':
     class_name = LapHREG.__name__
     
-    dir_path = os.path.join(f"randvec_{class_name}","10^3") 
-    npy_path = os.path.join(dir_path,"randvec128_10^3.npy") 
+    dir_path = os.path.join(f"randvec","10^3") 
+    npy_path = os.path.join(dir_path,"randvec_10^3.npy") 
     h = LapHREG(path=npy_path)
     h.build(16)
     h_path = npy_path.replace(".npy",f".{class_name.lower()}")

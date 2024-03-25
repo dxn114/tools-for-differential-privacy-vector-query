@@ -1,4 +1,5 @@
 from HNSW import HNSW
+from HGraph import test_run
 import numpy as np
 import os,time
 from queue import PriorityQueue
@@ -29,25 +30,18 @@ class JLHNSW (HNSW):
         self.epsilon = epsilon
         self.delta = delta
 
-    def dist(self,q : np.ndarray,vid:int,qid:int=None):
-        if qid == None:
-            d = q-self.noisy_data[vid]
-            return np.inner(d,d)
-        else:
-            return self.Dist_Mat[vid,qid]
-    def precal_dist(self)->None:
-        size = self.noisy_data.shape[0]
-        estimated_mem = (size**2)*4
-        if estimated_mem > psutil.virtual_memory().available:
-            return
-        self.Dist_Mat = pairwise_distances(self.noisy_data,metric='euclidean',n_jobs=-1)
+    def dist(self,q : np.ndarray,vid:int):
+        d = q-self.noisy_data[vid]
+        return np.inner(d,d)
+
     def build(self,path:str,M:int,efConstr):
         file_name = os.path.basename(path)
         class_name = self.__class__.__name__
         print(f"Building {class_name} from datafile {file_name} ...")
         if(path.endswith(".csv")):
             t = time.time()
-            M_max = 2*M
+            self.M = M
+            self.M_max = 2*M
             mL:float = 1//(np.log(M))
             self.data = np.loadtxt(path,delimiter=',',dtype=int)
             dim = self.data.shape[1]
@@ -65,7 +59,7 @@ class JLHNSW (HNSW):
             self.precal_dist()
 
             for vid in trange(self.num_of_vectors):
-                self.insert(self.noisy_data[vid],M,M_max,efConstr,mL,qid=vid)
+                self.insert(self.noisy_data[vid],self.M,self.M_max,efConstr,mL)
 
             self.num_of_layers = len(self.layers)
             t = time.time()-t
@@ -82,13 +76,4 @@ class JLHNSW (HNSW):
         return super().kNN_search(q_,K,ef)
 
 if __name__ == '__main__':
-    h = JLHNSW()
-    dir_path = os.path.join(f"randvec_{h.__class__.__name__}","10^3") 
-    csv_path = os.path.join(dir_path,"randvec128_10^3.csv") 
-    h_path = csv_path.replace(".csv",f".{h.__class__.__name__.lower()}")
-    h.build(csv_path,16,100)
-    h.save(h_path)
-    n = JLHNSW()
-    n.load(h_path)
-    n.draw(dir_path)
-    pass
+    test_run(JLHNSW)

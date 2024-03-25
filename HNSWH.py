@@ -1,7 +1,7 @@
 import numpy as np,os
 from queue import PriorityQueue
 from HNSW import HNSW
-import random
+from HGraph import test_run
     
 class HNSWH(HNSW):
     def select_neighbors(self,q:np.ndarray,C:PriorityQueue,M:int,lc:int,extCand:bool,keepPrunedConn:bool)->PriorityQueue:
@@ -35,14 +35,4 @@ class HNSWH(HNSW):
         return R
         
 if __name__ == '__main__':
-    class_name = HNSWH.__name__
-    dir_path = os.path.join(f"randvec","10^3") 
-    npy_path = os.path.join(dir_path,"randvec_10^3.npy")
-    h = HNSWH(npy_path)
-    h.build(8,100)
-    h_path = npy_path.replace(".npy",f".{class_name.lower()}")
-    h.save(h_path)
-    n = HNSWH()
-    n.load(h_path)
-    #n.draw(dir_path)
-    pass
+    test_run(HNSWH)

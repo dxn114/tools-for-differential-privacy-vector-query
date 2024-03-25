@@ -3,6 +3,7 @@ sys.path.append(os.path.abspath("."))
 from LapHREG import LapHREG
 from ExpHREG import ExpHREG
 from LapExpHREG import LapExpHREG
+from LapLapHREG import LapLapHREG
 import numpy as np
 from tqdm import tqdm
 import pickle
@@ -77,26 +78,35 @@ def build_from_file(dataset,exp):
         os.mkdir(test_dir)
     file_name = os.path.basename(vecfile_path)
 
-    for epsilon in [0.5,1,2,3,5]:
+    for epsilon in [0.5,1,2,3,4,5]:
         priv_budget_info=f"{test_name}={epsilon}_"
         test_path = os.path.join(exp_dir,test_name)
         h_path = os.path.join(exp_dir,test_name,priv_budget_info+file_name.replace(".npy",ext))
         
         if(os.path.basename(h_path) not in os.listdir(test_path)):
             build_model(vecfile_path,h_path,epsilon)
+def clean_test_res():
+    for rt in os.listdir(os.curdir):
+        if os.path.isdir(rt):
+            for dir in os.listdir(rt):
+                if os.path.isdir(dir) and dir.startswith("10^"):
+                    for f in os.listdir(dir):
+                        if f.endswith(".pkl"):
+                            os.remove(os.path.join(rt,dir,f))
 
 if __name__ == "__main__":
-    for dataset in ["randvec","MNIST","GloVe"]:
+    # clean_test_res()
+    for dataset in ["randvec","MNIST","GloVe","DEEP"]:
         for exp in [3,4]:
             plt.ylim(0,1.1)
-            for tc in [LapHREG,ExpHREG,LapExpHREG]:
+            for tc in [LapHREG,ExpHREG,LapExpHREG,LapLapHREG]:
                 test_class = tc
                 class_name= test_class.__name__
                 ext = f".{class_name.lower()}"
                 datasets_dir=f"{dataset}_{class_name}"
                 build_from_file(dataset,exp)
                 avgs = test_dataset(dataset,exp)
-                plt.plot(avgs.keys(),avgs.values(),label=class_name.removesuffix("HREG"))
+                plt.plot(avgs.keys(),avgs.values(),label=class_name.removesuffix("HREG"),marker="o")
                 
             plt.xlabel("epsilon")
             plt.ylabel("Recall")

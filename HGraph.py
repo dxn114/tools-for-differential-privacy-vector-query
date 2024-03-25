@@ -1,8 +1,7 @@
 import numpy as np,time,os,pickle,networkx as nx,matplotlib.pyplot as plt
 from queue import PriorityQueue
 from sklearn.metrics import pairwise_distances
-from sklearn.cluster import MiniBatchKMeans
-from scipy.spatial import KDTree
+from scipy.spatial.distance import euclidean, cosine
 
 class HGraph:
     data : np.ndarray = np.array([])
@@ -14,6 +13,7 @@ class HGraph:
     M : int = 0
     M_max : int = 0
     file = ""
+    distance = "euclidean"
 
     def __init__(self,path : str = None) -> None:
         self.layers = []
@@ -30,8 +30,13 @@ class HGraph:
                 print(f"ERROR! Cannot read file{file_name}") 
  
     def __dist__(self,q : np.ndarray,vid:int):
-        d = q-self.data[vid]
-        return np.linalg.norm(d)
+        if self.distance == "euclidean":
+            return euclidean(q,self.data[vid])
+        elif self.distance == "cosine":
+            return cosine(q,self.data[vid])
+        else:
+            print(f"ERROR! Unsupported distance metric {self.distance}")
+            exit(1)
 
     def search_layer(self,q:np.ndarray,ep:int,ef:int,lc:int)->PriorityQueue:
         v = {ep}
@@ -91,7 +96,7 @@ class HGraph:
     def build_layer(self, lc):
         pass     
 
-    def build(self,M:int):
+    def build(self,M:int,distance:str="euclidean"):
         class_name = self.__class__.__name__
         if(self.data.size>0):
             print(f"Building {class_name} from {self.data_file} ...")
@@ -99,7 +104,8 @@ class HGraph:
             mL:float = 1/(np.log(M))
             l = (-np.log(np.random.rand(self.num_of_vectors))*mL).astype(int)# new element’s level (count from 0)
             self.M = M
-            self.M_max = 2*M            
+            self.M_max = 2*M        
+            self.distance = distance    
             for i in range(self.num_of_vectors):
                 while len(self.layers)-1 < l[i]:
                     self.layers.append(nx.Graph())
@@ -157,3 +163,15 @@ class DPHGraph(HGraph):
     def __init__(self,epsilon=1,path : str = None) -> None:
         super().__init__(path)
         self.epsilon = epsilon
+
+def test_run(test_class):
+    class_name = test_class.__name__
+    dir_path = os.path.join(f"randvec","10^3") 
+    npy_path = os.path.join(dir_path,"randvec_10^3.npy") 
+    h = test_class(path=npy_path)
+    h.build(16)
+    h_path = npy_path.replace(".npy",f".{class_name.lower()}")
+    h.save(h_path)
+    n = test_class()
+    n.load(h_path)
+    # n.draw(dir_path)

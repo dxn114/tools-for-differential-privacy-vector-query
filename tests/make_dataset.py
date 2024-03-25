@@ -138,8 +138,19 @@ def GloVe():
     data_train, data_test = train_test_split(data, test_size=0.1)
     create_datafile(dataset_name,data_train,data_test)
             
-
+def DEEP():
+    dataset_name = "DEEP"
+    data_dir = dataset_name
+    import sys
+    sys.path.append(os.path.join(os.path.dirname(__file__), os.pardir))
+    from DEEP.loading import read_fbin
+    data=read_fbin(os.path.join(data_dir,"base.10M.fbin"), chunk_size=10**5+10**4)
+    from sklearn.model_selection import train_test_split
+    data_train, data_test = train_test_split(data, train_size=10**5, test_size=10**4)
+    create_datafile(dataset_name,data_train,data_test)
+        
 if __name__ == "__main__":
-    gen_randvec_file(3,4,5,6)
-    MNIST(extract_features=False)
-    GloVe()
+    # gen_randvec_file(3,4,5,6)
+    # MNIST(extract_features=False)
+    # GloVe()
+    DEEP()

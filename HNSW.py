@@ -1,6 +1,6 @@
-import numpy as np,os,time,networkx as nx
+import numpy as np,time,networkx as nx
 from queue import PriorityQueue
-from HGraph import HGraph
+from HGraph import HGraph,test_run
 import random
 from tqdm import tqdm
     
@@ -69,7 +69,7 @@ class HNSW(HGraph):
             self.ep = self.next_seqno
         self.next_seqno+=1
         
-    def build(self,M:int,efConstr):
+    def build(self,M:int,efConstr=100):
         class_name = self.__class__.__name__
         if(self.data.size>0):
             print(f"Building {class_name} from datafile {self.data_file} ...")
@@ -87,14 +87,4 @@ class HNSW(HGraph):
             print(f"ERROR! No data to build {class_name} from.")
 
 if __name__ == '__main__':
-    class_name = HNSW.__name__
-    dir_path = os.path.join(f"randvec","10^3") 
-    npy_path = os.path.join(dir_path,"randvec_10^3.npy")
-    h = HNSW(npy_path)
-    h.build(8,100)
-    h_path = npy_path.replace(".npy",f".{class_name.lower()}")
-    h.save(h_path)
-    n = HNSW()
-    n.load(h_path)
-    #n.draw(dir_path)
-    pass
+    test_run(HNSW)

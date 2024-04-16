@@ -1,8 +1,8 @@
 import numpy as np,time,os,pickle,networkx as nx,matplotlib.pyplot as plt
 from queue import PriorityQueue
-from sklearn.metrics import pairwise_distances
 from scipy.spatial.distance import euclidean, cosine
-
+import torch
+device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 class HGraph:
     data : np.ndarray = np.array([])
     data_file : str = ""
@@ -30,6 +30,7 @@ class HGraph:
                 print(f"ERROR! Cannot read file{file_name}") 
  
     def __dist__(self,q : np.ndarray,vid:int):
+        # return distance between query q and vector vid in the model
         if self.distance == "euclidean":
             return euclidean(q,self.data[vid])
         elif self.distance == "cosine":
@@ -45,7 +46,6 @@ class HGraph:
         C.put((dqep,ep))#increasing order
         W = PriorityQueue()
         W.put((-dqep,ep))#decreasing order
-        W_size = 1
         while not C.empty():
             c = C.get()
             f = W.queue[0]
@@ -56,13 +56,12 @@ class HGraph:
                     v.add(e)
                     f = W.queue[0]
                     deq = self.__dist__(q,e)
-                    if deq < -f[0] or W_size<ef:
+                    if deq < -f[0] or len(W.queue)<ef:
                         C.put((deq,e))
                         W.put((-deq,e))
-                        W_size +=1
-                        if W_size>ef:
+
+                        if len(W.queue)>ef:
                             W.get()
-                            W_size -=1
         #invert the order of W: make it increasing
         _W = PriorityQueue()
         for w in W.queue:
@@ -79,7 +78,7 @@ class HGraph:
             ep = W.queue[0][1]
         W = self.search_layer(q,ep,ef,0)
         W_ = []
-        for i in range(K):
+        while len(W_) < K and not W.empty():
             W_.append(W.get()[1])
         t = time.time()-t
         print(f"Search result retrieved in {t:.3f} seconds.\nCalculating accuracy ...")
@@ -87,7 +86,7 @@ class HGraph:
     
     def real_kNN(self,q:np.ndarray,K:int)->list:
         t = time.time()
-        dist_vec = pairwise_distances(np.array([q]),self.data,metric='euclidean',n_jobs=-1).ravel()
+        dist_vec = np.linalg.norm(self.data-q,axis=1)
         res = np.argsort(dist_vec)[:K].tolist()
         t = time.time()-t
         return res
@@ -164,10 +163,10 @@ class DPHGraph(HGraph):
         super().__init__(path)
         self.epsilon = epsilon
 
-def test_run(test_class):
+def test_run(test_class, dataset="randvec",exp=3):
     class_name = test_class.__name__
-    dir_path = os.path.join(f"randvec","10^3") 
-    npy_path = os.path.join(dir_path,"randvec_10^3.npy") 
+    dir_path = os.path.join(dataset,f"10^{exp}") 
+    npy_path = os.path.join(dir_path,f"{dataset}_10^{exp}.npy") 
     h = test_class(path=npy_path)
     h.build(16)
     h_path = npy_path.replace(".npy",f".{class_name.lower()}")
@@ -175,3 +174,26 @@ def test_run(test_class):
     n = test_class()
     n.load(h_path)
     # n.draw(dir_path)
+    return n
+
+def DPknn(q : torch.Tensor,data : torch.Tensor,epsilon:float,k:int,distance : str = "euclidean",noise : str = "gumbel")->np.ndarray: # Assume q and data are disjoint
+
+    if distance=="euclidean":
+        dist = torch.cdist(q,data)
+    elif distance=="cosine":
+        dist = 1 - torch.nn.functional.cosine_similarity(q,data,dim=1)
+    else:
+        raise ValueError("Unsupported distance metric")
+    
+    dist = dist.cpu().numpy()
+    if noise == "gumbel":
+        dist -= np.random.gumbel(0,2*k/epsilon,size=dist.shape)
+    elif noise == "laplace":
+        dist -= np.random.laplace(0,2*k/epsilon,size=dist.shape)
+    elif noise == "exponential":
+        dist -= np.random.exponential(2*k/epsilon,size=dist.shape)
+    else:
+        raise ValueError("Unsupported noise model")
+    dist = torch.tensor(dist,device=device)
+    k_smallest_indices = torch.topk(dist,k,largest=False,sorted=False).indices.cpu().numpy()
+    return k_smallest_indices

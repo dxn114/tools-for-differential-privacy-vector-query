@@ -26,7 +26,7 @@ def gen_randvec_file(*exp):
         np.save(filepath,rand_vec)
         f.close()
 
-def dataset2vec(data_train,data_test,extract_features:bool=False):
+def dataset2vec(data_train,data_test,normalize = None,extract_features:bool=False):
     
     if extract_features:
         from torchvision.models import resnet18
@@ -62,9 +62,14 @@ def dataset2vec(data_train,data_test,extract_features:bool=False):
     data_train = data_train.reshape(data_train.shape[0],-1).astype(float)
     data_test = data_test.reshape(data_test.shape[0],-1).astype(float)
     
-    from sklearn.preprocessing import StandardScaler
-    data_train=StandardScaler().fit_transform(data_train)
-    data_test=StandardScaler().fit_transform(data_test)  
+    if normalize == "MaxAbs":
+        from sklearn.preprocessing import MaxAbsScaler
+        data_train=MaxAbsScaler().fit_transform(data_train)
+        data_test=MaxAbsScaler().fit_transform(data_test)  
+    elif normalize == "Standard":
+        from sklearn.preprocessing import StandardScaler
+        data_train=StandardScaler().fit_transform(data_train)
+        data_test=StandardScaler().fit_transform(data_test)     
     return data_train,data_test
 
 
@@ -148,9 +153,26 @@ def DEEP():
     from sklearn.model_selection import train_test_split
     data_train, data_test = train_test_split(data, train_size=10**5, test_size=10**4)
     create_datafile(dataset_name,data_train,data_test)
-        
+
+def SIFT():
+    dataset_name = "SIFT"
+    data_dir = dataset_name
+    if not os.path.exists(data_dir):
+        os.makedirs(data_dir)
+
+    import tensorflow_datasets as tfds
+    data_train = tfds.load("sift1m",split="database")
+    data_test = tfds.load("sift1m",split="test")
+    data_test = tfds.as_dataframe(data_test)['embedding']
+    data_test = np.stack(data_test.to_numpy())
+    data_train = tfds.as_dataframe(data_train)['embedding']
+    data_train = np.stack(data_train.to_numpy()) 
+    
+    create_datafile(dataset_name,data_train,data_test)
+
 if __name__ == "__main__":
-    # gen_randvec_file(3,4,5,6)
-    # MNIST(extract_features=False)
-    # GloVe()
+    gen_randvec_file(3,4,5,6)
+    MNIST()
+    GloVe()
     DEEP()
+    SIFT()

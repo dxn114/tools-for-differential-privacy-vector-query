@@ -1,8 +1,10 @@
 import numpy as np,time,os,pickle,networkx as nx,matplotlib.pyplot as plt
 from queue import PriorityQueue
 from scipy.spatial.distance import euclidean, cosine
+from sklearn.metrics.pairwise import pairwise_distances
 import torch
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+
 class HGraph:
     data : np.ndarray = np.array([])
     data_file : str = ""
@@ -13,31 +15,25 @@ class HGraph:
     M : int = 0
     M_max : int = 0
     file = ""
-    distance = "euclidean"
+    cosine = False
 
     def __init__(self,path : str = None) -> None:
         self.layers = []
         if path is not None:
             file_name = os.path.basename(path)
             self.data_file = file_name
-            if(path.endswith(".csv") or  path.endswith(".npy")):
-                if path.endswith(".csv"):
-                    self.data = np.loadtxt(path,delimiter=',')
-                elif path.endswith(".npy"):
-                    self.data = np.load(path,allow_pickle=True)
+            if path.endswith(".npy"):
+                self.data = np.load(path,allow_pickle=True)
                 self.num_of_vectors = self.data.shape[0]
             else: 
-                print(f"ERROR! Cannot read file{file_name}") 
+                print(f"ERROR! Cannot initialize from file {file_name}") 
  
     def __dist__(self,q : np.ndarray,vid:int):
         # return distance between query q and vector vid in the model
-        if self.distance == "euclidean":
-            return euclidean(q,self.data[vid])
-        elif self.distance == "cosine":
+        if self.cosine:
             return cosine(q,self.data[vid])
         else:
-            print(f"ERROR! Unsupported distance metric {self.distance}")
-            exit(1)
+            return euclidean(q,self.data[vid])
 
     def search_layer(self,q:np.ndarray,ep:int,ef:int,lc:int)->PriorityQueue:
         v = {ep}
@@ -77,25 +73,32 @@ class HGraph:
             W : PriorityQueue = self.search_layer(q,ep,1,lc)
             ep = W.queue[0][1]
         W = self.search_layer(q,ep,ef,0)
-        W_ = []
-        while len(W_) < K and not W.empty():
-            W_.append(W.get()[1])
+        vids = []
+        dist_k = []
+        for _ in range(K):
+            dist,vid = W.get()
+            vids.append(vid)
+            dist_k.append(dist)
         t = time.time()-t
         print(f"Search result retrieved in {t:.3f} seconds.\nCalculating accuracy ...")
-        return W_
+        return vids, dist_k
     
     def real_kNN(self,q:np.ndarray,K:int)->list:
         t = time.time()
-        dist_vec = np.linalg.norm(self.data-q,axis=1)
-        res = np.argsort(dist_vec)[:K].tolist()
+        dist_vec = pairwise_distances(q.reshape(1,-1),self.data,n_jobs=-1,metric="cosine" if self.cosine else "euclidean")[0]
+        vids = np.argpartition(dist_vec,K)[:K]
+        dist_k = dist_vec[vids]
+        order = np.argsort(dist_k)
+        vids = vids[order]
+        dist_k = dist_k[order]
         t = time.time()-t
-        return res
+        return vids.tolist(), dist_k.tolist()
 
     
     def build_layer(self, lc):
         pass     
 
-    def build(self,M:int,distance:str="euclidean"):
+    def build(self,M:int,cosine = False):
         class_name = self.__class__.__name__
         if(self.data.size>0):
             print(f"Building {class_name} from {self.data_file} ...")
@@ -104,7 +107,7 @@ class HGraph:
             l = (-np.log(np.random.rand(self.num_of_vectors))*mL).astype(int)# new element’s level (count from 0)
             self.M = M
             self.M_max = 2*M        
-            self.distance = distance    
+            self.cosine = cosine   
             for i in range(self.num_of_vectors):
                 while len(self.layers)-1 < l[i]:
                     self.layers.append(nx.Graph())
@@ -163,6 +166,35 @@ class DPHGraph(HGraph):
         super().__init__(path)
         self.epsilon = epsilon
 
+class DPUPHGraph(HGraph):
+    epsilon : float = 0
+    def __init__(self, epsilon=1, path:str = None, path2:str = None, num_unprotected = None) -> None:
+        self.epsilon = epsilon
+        if path == None:
+            self.layers = []
+        else:
+            if path2 == None:
+                super().__init__(path=path)            
+                if num_unprotected == None or num_unprotected < 0: 
+                    num_unprotected = int(self.num_of_vectors/2)
+                elif num_unprotected < 1:
+                    num_unprotected = int(self.num_of_vectors*num_unprotected)
+                self.num_protected = self.num_of_vectors - num_unprotected
+            else:
+                self.layers = []
+                file1 = os.path.basename(path)
+                file2 = os.path.basename(path2)
+                self.data_file = file1 + " and " + file2
+                if path.endswith(".npy") and path2.endswith(".npy"):
+                    data1 = np.load(path,allow_pickle=True)
+                    data2 = np.load(path2,allow_pickle=True)
+                    self.data = np.stack((data1,data2),axis=0)
+                    self.num_of_vectors = self.data.shape[0]
+                    self.num_protected = data2.shape[0]
+                else: 
+                    print(f"ERROR! Cannot initialize from file {self.data_file}") 
+
+
 def test_run(test_class, dataset="randvec",exp=3):
     class_name = test_class.__name__
     dir_path = os.path.join(dataset,f"10^{exp}") 
@@ -176,14 +208,12 @@ def test_run(test_class, dataset="randvec",exp=3):
     # n.draw(dir_path)
     return n
 
-def DPknn(q : torch.Tensor,data : torch.Tensor,epsilon:float,k:int,distance : str = "euclidean",noise : str = "gumbel")->np.ndarray: # Assume q and data are disjoint
+def DPknn(q : torch.Tensor,data : torch.Tensor,epsilon:float,k:int,cosine : bool = False,noise : str = "gumbel")->np.ndarray: # Assume q and data are disjoint
 
-    if distance=="euclidean":
-        dist = torch.cdist(q,data)
-    elif distance=="cosine":
+    if cosine:
         dist = 1 - torch.nn.functional.cosine_similarity(q,data,dim=1)
     else:
-        raise ValueError("Unsupported distance metric")
+        dist = torch.cdist(q,data)
     
     dist = dist.cpu().numpy()
     if noise == "gumbel":

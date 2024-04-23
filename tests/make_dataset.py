@@ -5,7 +5,7 @@ def gen_randvec_file(*exp):
     data_dir = "randvec"
     if not os.path.exists(data_dir):
         os.makedirs(data_dir)   
-    dim = 128
+    dim = 4
     test_filename = "test.npy"
     if not test_filename in data_dir:
         f = open(os.path.join(data_dir, test_filename), "w")
@@ -172,7 +172,7 @@ def SIFT():
 
 if __name__ == "__main__":
     gen_randvec_file(3,4,5,6)
-    MNIST()
-    GloVe()
-    DEEP()
-    SIFT()
+    # MNIST()
+    # GloVe()
+    # DEEP()
+    # SIFT()

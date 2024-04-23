@@ -4,7 +4,7 @@ from torch_cluster import knn_graph
 import torch
 from tqdm import trange
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-class HREG(HGraph):
+class HKNN(HGraph):
     def build_layer(self, lc : int):
         layer_size = self.layers[lc].number_of_nodes()
         if self.M >= layer_size-1:
@@ -15,21 +15,21 @@ class HREG(HGraph):
         nodes = list(self.layers[lc].nodes())
         data = self.data[nodes]
         layer_data = torch.tensor(data,device=device,dtype=float)
-        gph = knn_graph(layer_data, k,loop=False,cosine=True if self.distance=="cosine" else False)
+        gph = knn_graph(layer_data, k,loop=False,cosine=self.cosine)
         gph = gph.cpu().numpy().T
         self.layers[lc].add_edges_from([(nodes[i],nodes[j]) for i,j in gph])
 
-class LapHREG(DPHGraph):
-    def build(self,M:int, distance:str="euclidean"):
+class LapHKNN(DPHGraph):
+    def build(self,M:int, cosine = False):
         noise = np.random.laplace(0,np.sqrt(self.data.shape[1])/self.epsilon,self.data.shape)
         self.data += noise
-        super().build(M,distance)
+        super().build(M,cosine)
         self.data -= noise
 
     def build_layer(self, lc : int):
-        HREG.build_layer(self,lc)
+        HKNN.build_layer(self,lc)
 
-class LapExpHREG(DPHGraph):
+class LapExpHKNN(DPHGraph):
     def build_layer(self, lc : int):
         layer_size = self.layers[lc].number_of_nodes()
         if self.M >= layer_size-1:
@@ -47,7 +47,7 @@ class LapExpHREG(DPHGraph):
         data_up = self.data[nodes_up]
         data_this = self.data[nodes_this]
         noisy_data_this = data_this + np.random.laplace(0,1/self.epsilon,data_this.shape)
-        gph = knn_graph(torch.tensor(noisy_data_this,device=device).float(),k,loop=False,cosine=True if self.distance=="cosine" else False)
+        gph = knn_graph(torch.tensor(noisy_data_this,device=device).float(),k,loop=False,cosine=self.cosine)
         gph = gph.cpu().numpy().T
         self.layers[lc].add_edges_from([(nodes_this[i],nodes_this[j]) for i,j in gph])
         batch_size = 1024
@@ -57,13 +57,13 @@ class LapExpHREG(DPHGraph):
         for i in range(0,data_up.shape[0],batch_size):
             step = batch_size if i+batch_size < data_up.shape[0] else data_up.shape[0] - i
             q = data_up[i:i+step]
-            k_smallest_indices = DPknn(torch.tensor(q,device=device),data_this,self.epsilon,distance=self.distance)
+            k_smallest_indices = DPknn(torch.tensor(q,device=device),data_this,self.epsilon,cosine=self.cosine)
             for j,neighbors in enumerate(k_smallest_indices):
                 source = nodes_up[i+j]
                 edges = [(source,nodes_this[n]) for n in neighbors]
                 self.layers[lc].add_edges_from(edges)
 
-class ExpHREG(DPHGraph):
+class ExpHKNN(DPHGraph):
     def build_layer(self, lc : int):
         print(f"Building layer {lc}...")
         layer_size = self.layers[lc].number_of_nodes()
@@ -78,12 +78,10 @@ class ExpHREG(DPHGraph):
         for st in trange(0,layer_size,batch_size):
             end = min(st+batch_size,layer_size)
             batch = torch.tensor(data[st:end],device=device)
-            if self.distance=="euclidean":
-                dist = torch.cdist(batch,data_t)
-            elif self.distance=="cosine":
+            if self.cosine:
                 dist =  1 - torch.nn.functional.cosine_similarity(batch,data_t,dim=1)
             else:
-                raise ValueError("Unsupported distance metric")
+                dist = torch.cdist(batch,data_t)
             dist = dist.cpu().numpy() 
             dist -= np.random.gumbel(0,2/self.epsilon,size=dist.shape)
             for idx in range(end-st):
@@ -95,4 +93,4 @@ class ExpHREG(DPHGraph):
                 self.layers[lc].add_edges_from(edges)
 
 if __name__ == '__main__':
-    test_run(HREG)
+    test_run(HKNN)

@@ -1,6 +1,6 @@
 import numpy as np,time,networkx as nx
 from queue import PriorityQueue
-from HGraph import HGraph,test_run
+from HGraph import HGraph,DPUPHGraph,test_run
 import random
 from tqdm import tqdm
     
@@ -10,7 +10,7 @@ class HNSW(HGraph):
     def __init__(self, path: str = None,heu_select = False) -> None:
         super().__init__(path)
         self.heu_select = heu_select
-    def select_neighbors(self,q:np.ndarray,C:PriorityQueue,M:int,lc:int,extCand:bool,keepPrunedConn:bool)->PriorityQueue:
+    def select_neighbors(self,q:np.ndarray,C:PriorityQueue,M:int,lc:int,extCand:bool = True,keepPrunedConn:bool = True)->PriorityQueue:
         if self.heu_select:
             R = PriorityQueue()#increasing order
             R_size = 0
@@ -64,12 +64,8 @@ class HNSW(HGraph):
 
         for lc in range(min(L,l),-1,-1):
             W = self.search_layer(q,ep,efConstr,lc)
-            neighbors_q :PriorityQueue = PriorityQueue()
-
-            extConn = True
-            keepPrunedConn= True
             
-            neighbors_q = self.select_neighbors(q,W,M,lc,extConn,keepPrunedConn)
+            neighbors_q = self.select_neighbors(q,W,M,lc)
 
             neighbors : list[int] = [n[1] for n in neighbors_q.queue]
             #add bidirectionall connectionts from neighbors to q at layer lc
@@ -83,15 +79,13 @@ class HNSW(HGraph):
                     eConn_q : PriorityQueue = PriorityQueue()
                     for ec in eConn:
                         eConn_q.put((self.__dist__(self.data[e],ec),ec))
-                    new_eConn_q : PriorityQueue = PriorityQueue()
-                    new_eConn_q = self.select_neighbors(self.data[e],eConn_q,M_max,lc,extConn,keepPrunedConn)
-                    new_eConn = [n[1] for n in new_eConn_q.queue]
-                    for nec in new_eConn:
+                    new_eConn_q = self.select_neighbors(self.data[e],eConn_q,M_max,lc)
+                    new_eConn = set(n[1] for n in new_eConn_q.queue)
+
+                    for nec in new_eConn - eConn:
                         self.layers[lc].add_edge(e,nec)
-                        if nec in eConn :
-                            eConn.discard(nec)
                     
-                    for ec in eConn:
+                    for ec in eConn - new_eConn:
                         self.layers[lc].remove_edge(e,ec)
             ep = W.queue[0][1]
 
@@ -103,11 +97,12 @@ class HNSW(HGraph):
             self.ep = self.next_seqno
         self.next_seqno+=1
         
-    def build(self,M:int,efConstr=100):
+    def build(self,M:int,cosine = False,efConstr=100):
         class_name = self.__class__.__name__
         if(self.data.size>0):
             print(f"Building {class_name} from datafile {self.data_file} ...")
             t = time.time()
+            self.cosine = cosine
             self.M = M
             self.M_max = 2*M
             mL:float = 1/(np.log(M))
@@ -119,6 +114,17 @@ class HNSW(HGraph):
             print(f"{class_name} from data file {self.data_file} built in {t:.3f} seconds.")
         else: 
             print(f"ERROR! No data to build {class_name} from.")
+
+class LapUPHNSW(DPUPHGraph, HNSW):       
+    def build(self,M:int, cosine = False,efConstr=100):   
+        num_unprotected = self.num_of_vectors - self.num_protected
+        
+        noise = np.random.laplace(0,np.sqrt(self.data.shape[1])/self.epsilon,(self.num_protected,self.data.shape[1]))
+
+        self.data[num_unprotected:] += noise
+        HNSW.build(self,M,cosine,efConstr)
+        self.data[num_unprotected:] -= noise
+
 
 if __name__ == '__main__':
     test_run(HNSW)

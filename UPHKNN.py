@@ -1,4 +1,4 @@
-from HGraph import HGraph, DPUPHGraph, DPknn,test_run
+from HGraph import DPUPHGraph, DPknn,test_run
 from HKNN import HKNN
 import numpy as np
 import networkx as nx
@@ -7,7 +7,7 @@ import time
 from torch_cluster import knn
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-class UPHKNN(HGraph):
+class UPHKNN(HKNN):
     num_protected : int = 0
 
     def __init__(self, path:str = None, path2:str = None, num_unprotected = None) -> None:
@@ -35,9 +35,6 @@ class UPHKNN(HGraph):
                     self.num_protected = data2.shape[0]
                 else: 
                     print(f"ERROR! Cannot initialize from file {self.data_file}") 
-
-    def build_layer(self, lc):
-        HKNN.build_layer(self,lc)
 
     def build(self,M:int,cosine:bool = False):
         class_name = self.__class__.__name__
@@ -81,13 +78,8 @@ class UPHKNN(HGraph):
         else: 
             print(f"ERROR! No data to build {class_name} from.")
 
-class ExpUPHKNN(DPUPHGraph):
-
-    def build_layer(self, lc):
-        HKNN.build_layer(self,lc)
-
+class ExpUPHKNN(DPUPHGraph,HKNN):
     def build(self,M:int,cosine:bool = False):
-
         class_name = self.__class__.__name__
         if(self.data.size>0):
             print(f"Building {class_name} from {self.data_file} ...")
@@ -102,61 +94,50 @@ class ExpUPHKNN(DPUPHGraph):
             # unprotected data are indexed lower than protected data
 
             l = (-np.log(np.random.rand(self.num_of_vectors))*mL).astype(int)# new element’s level (count from 0)
+
+            max_l = np.max(l[:num_unprotected])
+            l.clip(0,max_l,out=l)
+
+            self.layers = [nx.Graph() for _ in range(max_l+1)]
+                
+            self.num_of_layers = len(self.layers)
+
             for i in range(num_unprotected):
-                while len(self.layers)-1 < l[i]:
-                    self.layers.append(nx.Graph())
                 for j in range(l[i]+1):
                     self.layers[j].add_node(i)
 
-            self.num_of_layers = len(self.layers)
             self.ep = int(list(self.layers[-1].nodes())[-1])
-            
+
             for lc in range(self.num_of_layers-1,-1,-1):
                 self.build_layer(lc)
-
-            self.layers[0].add_nodes_from(range(num_unprotected,self.num_of_vectors))
             
             unprotected_data_t = torch.tensor(self.data[:num_unprotected],dtype=float,device=device)
             protected_data_t = torch.tensor(self.data[num_unprotected:],dtype=float,device=device)
             k_unprotected_nbr = DPknn(protected_data_t,unprotected_data_t,self.epsilon,self.M,cosine=self.cosine)
-
-            for i in range(num_unprotected,self.num_of_vectors):
-                while len(self.layers)-1 < l[i]:
-                    self.layers.append(nx.Graph())
-                for j in range(l[i]+1):
-                    self.layers[j].add_node(i)
-
-            self.num_of_layers = len(self.layers)
-            self.ep = int(list(self.layers[-1].nodes())[-1])
-
+            
             for i, knbrs in enumerate(k_unprotected_nbr):
                 edges = [(i+num_unprotected,nbr) for nbr in knbrs]
                 self.layers[0].add_edges_from(edges)
                 for lc in range(1,self.num_of_layers):
-                    if self.layers[lc].number_of_nodes() <= self.M + 1:
-                        self.layers[lc] = nx.complete_graph(self.layers[lc].nodes())
-                    else:
-                        edges = [(u,v) for u,v in edges if lc <= l[u] and lc <= l[v]]
-                        self.layers[lc].add_edges_from(edges)
+                    edges = [(u,v) for u,v in edges if lc <= l[u] and lc <= l[v]]
+                    self.layers[lc].add_edges_from(edges)
 
             t = time.time()-t
             print(f"{class_name} from data file {self.data_file} built in {t:.3f} seconds.")
         else: 
             print(f"ERROR! No data to build {class_name} from.")
 
-class LapUPHKNN(DPUPHGraph):
+class LapUPHKNN(DPUPHGraph, HKNN):
     def build(self,M:int, cosine = False):   
         num_unprotected = self.num_of_vectors - self.num_protected
         
         noise = np.random.laplace(0,np.sqrt(self.data.shape[1])/self.epsilon,(self.num_protected,self.data.shape[1]))
 
         self.data[num_unprotected:] += noise
-        super().build(M,cosine)
+        HKNN.build(self,M,cosine)
         self.data[num_unprotected:] -= noise
 
-    def build_layer(self, lc : int):
-        HKNN.build_layer(self,lc)
 
 if __name__ == "__main__":
-    test_run(UPHKNN)
+    # test_run(UPHKNN)
     test_run(ExpUPHKNN)

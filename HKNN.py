@@ -19,15 +19,12 @@ class HKNN(HGraph):
         gph = gph.cpu().numpy().T
         self.layers[lc].add_edges_from([(nodes[i],nodes[j]) for i,j in gph])
 
-class LapHKNN(DPHGraph):
+class LapHKNN(DPHGraph, HKNN):
     def build(self,M:int, cosine = False):
         noise = np.random.laplace(0,np.sqrt(self.data.shape[1])/self.epsilon,self.data.shape)
         self.data += noise
-        super().build(M,cosine)
+        HKNN.build(self,M,cosine)
         self.data -= noise
-
-    def build_layer(self, lc : int):
-        HKNN.build_layer(self,lc)
 
 class LapExpHKNN(DPHGraph):
     def build_layer(self, lc : int):

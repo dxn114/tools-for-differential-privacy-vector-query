@@ -1,13 +1,14 @@
 import sys,os,matplotlib.pyplot as plt
 sys.path.append(os.path.abspath('.'))
-from HKNN import HKNN,LapHKNN
+from HNSW import HNSW,LapUPHNSW
+from HKNN import HKNN
 from UPHKNN import UPHKNN,ExpUPHKNN,LapUPHKNN
 import numpy as np
 from tqdm import tqdm
 import pickle
-from sklearn.metrics.pairwise import pairwise_distances, cosine_similarity
-from sklearn.metrics import ndcg_score
-test_class = LapHKNN
+from sklearn.metrics.pairwise import pairwise_distances
+
+test_class = LapUPHKNN
 class_name = test_class.__name__
 ext = f".{class_name.lower()}"
 K = 100
@@ -16,10 +17,9 @@ ef_query = 200
 
 def test_DP(dataset,exp,test):
     model_dir=os.path.join(f"{dataset}_{class_name}",f"10^{exp}")
-    
+    data_dir = os.path.join(f"{dataset}",f"10^{exp}")
     return_res = {}
-    if f"result_{test}.pkl" not in os.listdir(model_dir):
-        
+    if not os.path.exists(os.path.join(model_dir,f"result_{test}.pkl")):
         dir_path = os.path.join(model_dir,test)
         for f in os.listdir(dir_path):
             h = test_class()
@@ -28,10 +28,20 @@ def test_DP(dataset,exp,test):
                 h.load(model_path)
                 test_data = np.load(os.path.join(f"{dataset}","test.npy"))
                 avg_rec = 0
+                avg_acc = 0
                 avg_pw_dist_mean = 0
                 avg_pw_dist_max = 0
-                avg_ndcg = 0
-                for q in tqdm(test_data):
+                avg_q_dist_mean = 0
+                avg_q_dist_max = 0
+
+                labeled = False
+                if os.path.exists(os.path.join(data_dir,f"y_{dataset}_10^{exp}.npy")):
+                    y_data = np.load(os.path.join(data_dir,f"y_{dataset}_10^{exp}.npy"))
+                    labeled = True
+                if os.path.exists(os.path.join(f"{dataset}","y_test.npy")):
+                    y_test = np.load(os.path.join(f"{dataset}","y_test.npy"))
+
+                for i,q in enumerate(tqdm(test_data)):
                         print("======================================")
                         res,dist_res = h.kNN_search(q,K_query,ef_query)
                         real,dist_real = h.real_kNN(q,K)
@@ -51,26 +61,25 @@ def test_DP(dataset,exp,test):
                         avg_pw_dist_mean += pw_dist_mean
                         avg_pw_dist_max += pw_dist_max
 
-                        print(f"Mean Pairwise Distance: {pw_dist_mean}")
-                        print(f"Max Pairwise Distance: {pw_dist_max}")
+                        avg_q_dist_mean += np.mean(dist_res)
+                        avg_q_dist_max += np.max(dist_res)
 
-                        # pw_cos_sim_res = cosine_similarity(q.reshape(1, -1),data_res)
-                        # pw_cos_sim_real = cosine_similarity(q.reshape(1, -1),data_real)
-                        # ndcg = ndcg_score(pw_cos_sim_real,pw_cos_sim_res)
-                        # avg_ndcg += ndcg
-
-                        # print(f"NDCG: {ndcg}")
-
-
+                        if labeled:
+                            acc = np.sum(y_data[res]==y_test[i])/K_query
+                            avg_acc += acc
 
                 avg_rec /= test_data.shape[0]
                 avg_pw_dist_mean /= test_data.shape[0]
                 avg_pw_dist_max /= test_data.shape[0]
-                avg_ndcg /= test_data.shape[0]
+                avg_acc /= test_data.shape[0]
+                avg_q_dist_mean /= test_data.shape[0]
+                avg_q_dist_max /= test_data.shape[0]
 
+                res = (avg_rec,avg_acc,avg_pw_dist_mean,avg_pw_dist_max,avg_q_dist_mean,avg_q_dist_max)
                 if test=="epsilon":
-                    return_res[h.epsilon] = (avg_rec,avg_pw_dist_mean,avg_pw_dist_max,avg_ndcg)
-        
+                    return_res[h.epsilon] = res
+                elif test=="M":
+                    return_res[h.M] = res
         return_res = dict(sorted(return_res.items()))
         pickle.dump(return_res,open(os.path.join(model_dir,f"result_{test}.pkl"),"wb"))
     else:
@@ -80,7 +89,7 @@ def test_DP(dataset,exp,test):
 def build_DP_model(vecfile_path,model_path,**kwargs):
     exp = int(vecfile_path[-5])
     epsilon = 1
-    M = int(1.5*2**exp)
+    M = 25
     unprotected = 0.5
 
     for key, val in kwargs.items():
@@ -114,9 +123,9 @@ def build_DP_test_from_file(dataset,exp,test):
     file_name = os.path.basename(vecfile_path)
 
     if test=="epsilon":
-        var_range = [1,3,5,7,9]
+        var_range = range(1,10)
     elif test=="M":
-        var_range = [8,16,24,32,64]
+        var_range = range(20,50,5)
     else:
         exit(1)
     
@@ -143,10 +152,11 @@ def clean_test_res():
                         if f.endswith(".pkl"):
                             os.remove(os.path.join(dir_path,f))
 
-def test_base(dataset,exp,test):
-    model_dir=os.path.join(f"{dataset}_{class_name}",f"10^{exp}")   
+def test_base(dataset,exp):
+    model_dir=os.path.join(f"{dataset}_{class_name}",f"10^{exp}")  
+    data_dir=os.path.join(f"{dataset}",f"10^{exp}") 
     return_res = None
-    if f"result_{test}.pkl" not in os.listdir(model_dir):
+    if not os.path.exists(os.path.join(model_dir,f"result.pkl")):
         for f in os.listdir(model_dir):
             h = test_class()
             if f.endswith(ext):
@@ -155,13 +165,23 @@ def test_base(dataset,exp,test):
                 test_data = np.load(os.path.join(f"{dataset}","test.npy"))
 
                 avg_rec = 0
+                avg_acc = 0
                 avg_pw_dist_mean = 0
                 avg_pw_dist_max = 0
-                avg_ndcg = 0
-                for q in tqdm(test_data):
+                avg_q_dist_mean = 0
+                avg_q_dist_max = 0
+
+                labeled = False
+                if os.path.exists(os.path.join(data_dir,f"y_{dataset}_10^{exp}.npy")):
+                    y_data = np.load(os.path.join(data_dir,f"y_{dataset}_10^{exp}.npy"))
+                    labeled = True
+                if os.path.exists(os.path.join(f"{dataset}","y_test.npy")):
+                    y_test = np.load(os.path.join(f"{dataset}","y_test.npy"))
+
+                for i,q in enumerate(tqdm(test_data)):
                     print("======================================")
-                    res,_ = h.kNN_search(q,K_query,ef_query)
-                    real,_ = h.real_kNN(q,K)
+                    res,dist_res = h.kNN_search(q,K_query,ef_query)
+                    real,dist_real = h.real_kNN(q,K)
                     
                     TP = len(set(res)&set(real))
                     rec = TP/float(K)
@@ -174,28 +194,28 @@ def test_base(dataset,exp,test):
                     pw_dist_max = np.max(pw_dist)
                     avg_pw_dist_mean += pw_dist_mean
                     avg_pw_dist_max += pw_dist_max
-                    print(f"Mean Pairwise Distance: {pw_dist_mean}")
-                    print(f"Max Pairwise Distance: {pw_dist_max}")
-                    
-                    # pw_cos_sim_res = cosine_similarity(q.reshape(1, -1),data_res)
-                    # pw_cos_sim_real = cosine_similarity(q.reshape(1, -1),data_real)
-                    # ndcg = ndcg_score(pw_cos_sim_real,pw_cos_sim_res)
-                    # avg_ndcg += ndcg
-                    # print(f"NDCG: {ndcg}")
+                    avg_q_dist_mean += np.mean(dist_res)
+                    avg_q_dist_max += np.max(dist_res)
 
+                    if labeled:
+                        acc = np.sum(y_data[res]==y_test[i])/K_query
+                        avg_acc += acc
+                    
                 avg_rec /= test_data.shape[0]
+                avg_acc /= test_data.shape[0]
                 avg_pw_dist_mean /= test_data.shape[0]
                 avg_pw_dist_max /= test_data.shape[0]
-                avg_ndcg /= test_data.shape[0]
-        return_res = (avg_rec,avg_pw_dist_mean,avg_pw_dist_max,avg_ndcg)
-        pickle.dump(return_res,open(os.path.join(model_dir,f"result_{test}.pkl"),"wb"))
+                avg_q_dist_mean /= test_data.shape[0]
+                avg_q_dist_max /= test_data.shape[0]
+        return_res = (avg_rec,avg_acc,avg_pw_dist_mean,avg_pw_dist_max,avg_q_dist_mean,avg_q_dist_max)
+        pickle.dump(return_res,open(os.path.join(model_dir,f"result.pkl"),"wb"))
     else:
-        return_res = pickle.load(open(os.path.join(model_dir,f"result_{test}.pkl"),"rb"))
+        return_res = pickle.load(open(os.path.join(model_dir,f"result.pkl"),"rb"))
     return return_res
 
 def build_base_model(vecfile_path,model_path):
     exp = int(vecfile_path[-5])
-    M = int(1.5*2**exp)
+    M = 25
     h = test_class(path=vecfile_path)
     h.build(M)
     h.save(model_path)
@@ -220,53 +240,55 @@ def build_base_from_file(dataset,exp):
 
 if __name__ == "__main__":
     # clean_test_res()
-    for dataset in ["randvec","DEEP","GloVe"]:
-        for exp in [3,4]:
-            test = "epsilon"
-            test_class = HKNN
-            class_name= test_class.__name__
-            ext = f".{class_name.lower()}"
-            datasets_dir=f"{dataset}_{class_name}"
-            build_base_from_file(dataset,exp)
-            avg_rec_HKNN, avg_pw_dist_mean_HKNN, avg_pw_dist_max_HKNN, avg_ndcg_HKNN = test_base(dataset,exp,test)
+    if not os.path.exists("figure"):
+        os.mkdir("figure")
+    for exp in [4]:
+        for test in ["M","epsilon"]:
+            if test=="M":
+                test_label = "K"
+            elif test=="epsilon":
+                test_label = r"$\epsilon$"
+            for dataset in ["randvec","DEEP","GloVe","MNIST","SIFT"]:
+                fig0,ax0 = plt.subplots(1,1)
+                fig1,ax1 = plt.subplots(1,1)
+                fig2,ax2 = plt.subplots(1,1)
+                fig3,ax3 = plt.subplots(1,1)
+                fig4,ax4 = plt.subplots(1,1)
+                fig5,ax5 = plt.subplots(1,1)
+                axs = [ax0,ax1,ax2,ax3,ax4,ax5]
+                figs = [fig0,fig1,fig2,fig3,fig4,fig5]
+                y_labels = ["Recall","Accuracy","APD","MPD","AQD","MQD"]
+                ax0.set_ylim([0,1.1])
+                ax1.set_ylim([0,1.1])
 
-            fig, (ax1,ax2,ax3) = plt.subplots(1,3,figsize=(15,5))
-            ax1.set_ylim([0,1.1])
-            
-            ax1.axhline(avg_rec_HKNN,label=class_name,color="black",linestyle="--")
-            ax2.axhline(avg_pw_dist_mean_HKNN,label=class_name,color="black",linestyle="--")
-            ax3.axhline(avg_pw_dist_max_HKNN,label=class_name,color="black",linestyle="--")
+                colors =  ["red","black"]
+                for it,test_class in enumerate([HKNN,HNSW]):
+                    class_name= test_class.__name__
+                    ext = f".{class_name.lower()}"
+                    datasets_dir=f"{dataset}_{class_name}"
+                    build_base_from_file(dataset,exp)
+                    avg_res = test_base(dataset,exp)
+                    
+                    for i,ax in enumerate(axs):
+                        ax.axhline(avg_res[i],label=class_name,color=colors[it],linestyle="--")
 
-            for tc in [LapHKNN,ExpUPHKNN,LapUPHKNN]:
-                test_class = tc
-                class_name= test_class.__name__
-                ext = f".{class_name.lower()}"
-                datasets_dir=f"{dataset}_{class_name}"
-                build_DP_test_from_file(dataset,exp,test)
-                res = test_DP(dataset,exp,test)
+                for test_class in [ExpUPHKNN,LapUPHKNN,LapUPHNSW]:
+                    
+                    class_name= test_class.__name__
+                    ext = f".{class_name.lower()}"
+                    datasets_dir=f"{dataset}_{class_name}"
+                    build_DP_test_from_file(dataset,exp,test)
+                    res = test_DP(dataset,exp,test)
 
-                epsilons = res.keys()
-                avg_recs = [res[epsilon][0] for epsilon in epsilons]
-                avg_pw_dist_mean = [res[epsilon][1] for epsilon in epsilons]
-                avg_pw_dist_max = [res[epsilon][2] for epsilon in epsilons]
-                avg_ndcg = [res[epsilon][3] for epsilon in epsilons]
-                
-                ax1.plot(epsilons,avg_recs,label=class_name.removesuffix("HKNN"),marker="o")
-                ax2.plot(epsilons,avg_pw_dist_mean,label=class_name.removesuffix("HKNN"),marker="o")
-                ax3.plot(epsilons,avg_pw_dist_max,label=class_name.removesuffix("HKNN"),marker="o")
+                    keys = res.keys()
 
-                ax1.set_xlabel(test)
-                ax2.set_xlabel(test)
-                ax3.set_xlabel(test)
-                ax1.legend()
-                ax2.legend()
-                ax3.legend()
-                ax1.set_ylabel("Recall")
-                ax2.set_ylabel("Mean Pairwise Distance")
-                ax3.set_ylabel("Max Pairwise Distance")
+                    for i, ax in enumerate(axs):
+                        avg_res = [res[key][i] for key in keys]
+                        ax.plot(keys,avg_res,label=class_name,marker="o")
+                        ax.set_xlabel(test_label)
+                        ax.legend()
+                        ax.set_ylabel(y_labels[i])
 
-           
-            fig.suptitle(f"{dataset} 10^{exp}")
-            
-            fig.savefig(f"{dataset}_10^{exp}.png")
-            plt.close()
+                for i,fig in enumerate(figs):
+                    fig.savefig(os.path.join("figure",f"{dataset}_{y_labels[i]}_{test}.png"),bbox_inches="tight")
+                    plt.close()

@@ -3,6 +3,7 @@ from queue import PriorityQueue
 from scipy.spatial.distance import euclidean, cosine
 from sklearn.metrics.pairwise import pairwise_distances
 import torch
+from torch.utils.data import DataLoader, TensorDataset
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 class HGraph:
@@ -76,6 +77,8 @@ class HGraph:
         vids = []
         dist_k = []
         for _ in range(K):
+            if W.empty():
+                break
             dist,vid = W.get()
             vids.append(vid)
             dist_k.append(dist)
@@ -108,9 +111,10 @@ class HGraph:
             self.M = M
             self.M_max = 2*M        
             self.cosine = cosine   
+            
+            self.layers = [nx.Graph() for _ in range(l.max()+1)]    
+
             for i in range(self.num_of_vectors):
-                while len(self.layers)-1 < l[i]:
-                    self.layers.append(nx.Graph())
                 for j in range(l[i]+1):
                     self.layers[j].add_node(i)
 
@@ -208,22 +212,27 @@ def test_run(test_class, dataset="randvec",exp=3):
     # n.draw(dir_path)
     return n
 
-def DPknn(q : torch.Tensor,data : torch.Tensor,epsilon:float,k:int,cosine : bool = False,noise : str = "gumbel")->np.ndarray: # Assume q and data are disjoint
-
-    if cosine:
-        dist = 1 - torch.nn.functional.cosine_similarity(q,data,dim=1)
-    else:
-        dist = torch.cdist(q,data)
-    
-    dist = dist.cpu().numpy()
-    if noise == "gumbel":
-        dist -= np.random.gumbel(0,2*k/epsilon,size=dist.shape)
-    elif noise == "laplace":
-        dist -= np.random.laplace(0,2*k/epsilon,size=dist.shape)
-    elif noise == "exponential":
-        dist -= np.random.exponential(2*k/epsilon,size=dist.shape)
-    else:
-        raise ValueError("Unsupported noise model")
-    dist = torch.tensor(dist,device=device)
-    k_smallest_indices = torch.topk(dist,k,largest=False,sorted=False).indices.cpu().numpy()
-    return k_smallest_indices
+def DPknn(queries : torch.Tensor,data : torch.Tensor,epsilon:float,k:int,cosine : bool = False,noise : str = "gumbel")->np.ndarray: # Assume q and data are disjoint
+    batch_size = 1024
+    queries = TensorDataset(queries)
+    queries = DataLoader(queries,batch_size=batch_size)
+    k_smallest_indices = []
+    for q in queries:
+        q = q[0]
+        if cosine:
+            dist = 1 - torch.nn.functional.cosine_similarity(q,data,dim=1)
+        else:
+            dist = torch.cdist(q,data)
+        
+        dist = dist.cpu().numpy()
+        if noise == "gumbel":
+            dist -= np.random.gumbel(0,2*k/epsilon,size=dist.shape)
+        elif noise == "laplace":
+            dist -= np.random.laplace(0,2*k/epsilon,size=dist.shape)
+        elif noise == "exponential":
+            dist -= np.random.exponential(2*k/epsilon,size=dist.shape)
+        else:
+            raise ValueError("Unsupported noise model")
+        dist = torch.tensor(dist,device=device)
+        k_smallest_indices.append(torch.topk(dist,k,largest=False,sorted=False).indices.cpu().numpy())
+    return np.concatenate(k_smallest_indices)
